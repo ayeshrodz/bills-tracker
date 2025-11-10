@@ -11,18 +11,21 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
+        {/* OLD UI layout: navbar on top, light background, main does min-h-screen */}
         <Navbar />
         <main className="min-h-screen bg-slate-100 pt-16">
           <Routes>
+            {/* Public route */}
             <Route path="/login" element={<LoginPage />} />
 
+            {/* Protected routes (NEW logic / paths) */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<BillsListPage />} />
-              <Route path="/add" element={<BillFormPage />} />
-              <Route path="/edit/:id" element={<BillFormPage />} />
+              <Route path="/bills/new" element={<BillFormPage />} />
+              <Route path="/bills/:id" element={<BillFormPage />} />
             </Route>
 
-            {/* Fallback: redirect unknown paths to home (could also go to /login) */}
+            {/* Optional: catch-all redirect */}
             {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
           </Routes>
         </main>

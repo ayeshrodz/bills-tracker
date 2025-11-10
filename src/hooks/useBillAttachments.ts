@@ -1,26 +1,10 @@
 // src/hooks/useBillAttachments.ts
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-
-export type BillAttachment = {
-  id: string;
-  bill_id: string;
-  file_type: string;
-  file_name: string;
-  file_path: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  uploaded_at: string;
-  user_id?: string | null;
-};
+import type { BillAttachment, AttachmentCategory } from "../types/attachments";
+import { buildAttachmentPath } from "../utils/storagePaths";
 
 const BUCKET = "bill-attachments";
-
-const sanitizeFileName = (name: string): string => {
-  return name
-    .normalize("NFKD")
-    .replace(/[^\w.-]+/g, "_");
-};
 
 type UseBillAttachmentsResult = {
   attachments: BillAttachment[];
@@ -28,149 +12,156 @@ type UseBillAttachmentsResult = {
   error: string | null;
   uploadFiles: (
     files: FileList | File[],
-    fileType?: "bill" | "payment" | "other"
+    fileType?: AttachmentCategory
   ) => Promise<void>;
   deleteAttachment: (att: BillAttachment) => Promise<void>;
-  getSignedUrl: (filePath: string) => Promise<string | null>;
+  getPublicUrl: (path: string) => string;
+  refetch: () => Promise<void>;
 };
 
-export const useBillAttachments = (billId: string): UseBillAttachmentsResult => {
+export function useBillAttachments(
+  billId: string | null
+): UseBillAttachmentsResult {
   const [attachments, setAttachments] = useState<BillAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const normalizeError = (err: unknown): string => {
-    if (err instanceof Error) return err.message;
-    if (typeof err === "string") return err;
-    try {
-      return JSON.stringify(err);
-    } catch {
-      return "Unknown error";
-    }
+  const setUnknownError = (err: unknown) => {
+    if (err instanceof Error) setError(err.message);
+    else if (typeof err === "string") setError(err);
+    else setError("Unknown error");
   };
 
   const fetchAttachments = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data, error: queryError } = await supabase
-        .from("bill_attachments")
-        .select("*")
-        .eq("bill_id", billId)
-        .order("uploaded_at", { ascending: false });
-
-      if (queryError) throw queryError;
-
-      setAttachments(data || []);
-    } catch (err: unknown) {
-      setError(normalizeError(err));
-    } finally {
-      setLoading(false);
+    if (!billId) {
+      setAttachments([]);
+      return;
     }
+
+    setLoading(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from("bill_attachments")
+      .select("*")
+      .eq("bill_id", billId)
+      .order("uploaded_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading attachments:", error);
+      setError(error.message);
+    } else if (data) {
+      setAttachments(data as BillAttachment[]);
+    }
+
+    setLoading(false);
   }, [billId]);
 
   useEffect(() => {
-    if (!billId) return;
     void fetchAttachments();
-  }, [billId, fetchAttachments]);
+  }, [fetchAttachments]);
 
-  const uploadFiles = useCallback(
-    async (
-      files: FileList | File[],
-      fileType: "bill" | "payment" | "other" = "other"
-    ) => {
-      setLoading(true);
-      setError(null);
+  async function uploadFiles(
+    files: FileList | File[],
+    fileType: AttachmentCategory = "other"
+  ): Promise<void> {
+    if (!billId) return;
 
-      try {
-        for (const file of Array.from(files)) {
-          const safeName = sanitizeFileName(file.name);
-          const filePath = `${billId}/${Date.now()}_${safeName}`;
+    const fileArray = Array.from(files);
+    setError(null);
+    setLoading(true);
 
-          const { error: uploadError } = await supabase.storage
-            .from(BUCKET)
-            .upload(filePath, file);
+    try {
+      for (const file of fileArray) {
+        const path = buildAttachmentPath(billId, file.name);
 
-          if (uploadError) throw uploadError;
+        // 1) Upload to storage
+        const { data: storageData, error: storageError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file);
 
-          const { error: insertError } = await supabase
-            .from("bill_attachments")
-            .insert({
-              bill_id: billId,
-              file_type: fileType,
-              file_name: file.name,
-              file_path: filePath,
-              mime_type: file.type,
-              size_bytes: file.size,
-            });
-
-          if (insertError) throw insertError;
+        if (storageError) {
+          console.error("Error uploading file to storage:", storageError);
+          setError(storageError.message);
+          continue;
         }
 
-        await fetchAttachments();
-      } catch (err: unknown) {
-        setError(normalizeError(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [billId, fetchAttachments]
-  );
+        const storagePath = storageData?.path ?? path;
 
-  const deleteAttachment = useCallback(
-    async (att: BillAttachment) => {
-      setError(null);
-      try {
-        // Delete from storage
-        await supabase.storage.from(BUCKET).remove([att.file_path]);
-
-        // Delete record
-        const { error: delError } = await supabase
+        // 2) Insert DB row
+        const { data, error: dbError } = await supabase
           .from("bill_attachments")
-          .delete()
-          .eq("id", att.id);
+          .insert({
+            bill_id: billId,
+            file_type: fileType,
+            file_name: file.name,      // original name for display
+            file_path: storagePath,    // sanitized path used in storage
+            mime_type: file.type || null,
+            size_bytes: file.size,
+            // user_id is set by RLS / DB default (auth.uid())
+          })
+          .select()
+          .single();
 
-        if (delError) throw delError;
-
-        setAttachments((prev) => prev.filter((a) => a.id !== att.id));
-      } catch (err: unknown) {
-        setError(normalizeError(err));
-      }
-    },
-    []
-  );
-
-  const getSignedUrl = useCallback(
-    async (filePath: string): Promise<string | null> => {
-      if (!filePath) return null;
-
-      const { data, error: signedError } = await supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(filePath, 60 * 60); // 1 hour expiry
-
-      if (signedError) {
-        // Avoid "Object not found" showing up after deletion
-        if (signedError.message === "Object not found") {
-          console.warn("File not found when creating signed URL:", filePath);
-          return null;
+        if (dbError) {
+          console.error("Error inserting attachment row:", dbError);
+          setError(dbError.message);
+          continue;
         }
 
-        console.error("Error creating signed URL:", signedError.message);
-        setError(normalizeError(signedError));
-        return null;
+        if (data) {
+          setAttachments((prev) => [data as BillAttachment, ...prev]);
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected error uploading attachments:", err);
+      setUnknownError(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteAttachment(att: BillAttachment): Promise<void> {
+    setError(null);
+    setLoading(true);
+
+    try {
+      // 1) Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from(BUCKET)
+        .remove([att.file_path]);
+
+      if (storageError) {
+        console.error("Error deleting file from storage:", storageError);
+        setError(storageError.message);
+        return;
       }
 
-      return data?.signedUrl ?? null;
-    },
-    []
-  );
+      // 2) Delete DB row
+      const { error: dbError } = await supabase
+        .from("bill_attachments")
+        .delete()
+        .eq("id", att.id);
 
-  useEffect(() => {
-    if (attachments.length === 0) {
-      setError(null);
+      if (dbError) {
+        console.error("Error deleting attachment row:", dbError);
+        setError(dbError.message);
+        return;
+      }
+
+      setAttachments((prev) => prev.filter((a) => a.id !== att.id));
+    } catch (err) {
+      console.error("Unexpected error deleting attachment:", err);
+      setUnknownError(err);
+    } finally {
+      setLoading(false);
     }
-  }, [attachments]);
+  }
+
+  function getPublicUrl(path: string): string {
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
 
   return {
     attachments,
@@ -178,6 +169,7 @@ export const useBillAttachments = (billId: string): UseBillAttachmentsResult => 
     error,
     uploadFiles,
     deleteAttachment,
-    getSignedUrl,
+    getPublicUrl,
+    refetch: fetchAttachments,
   };
-};
+}

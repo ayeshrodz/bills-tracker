@@ -9,4 +9,7 @@ export type AuthContextType = {
   signOut: () => Promise<void>;
 };
 
-export const AuthContext = createContext<AuthContextType | null>(null);
+// We start as undefined so useAuth can throw a clear error
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
