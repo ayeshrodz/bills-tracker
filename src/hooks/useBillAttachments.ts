@@ -16,6 +16,12 @@ export type BillAttachment = {
 
 const BUCKET = "bill-attachments";
 
+const sanitizeFileName = (name: string): string => {
+  return name
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "_");
+};
+
 type UseBillAttachmentsResult = {
   attachments: BillAttachment[];
   loading: boolean;
@@ -79,7 +85,8 @@ export const useBillAttachments = (billId: string): UseBillAttachmentsResult => 
 
       try {
         for (const file of Array.from(files)) {
-          const filePath = `${billId}/${Date.now()}_${file.name}`;
+          const safeName = sanitizeFileName(file.name);
+          const filePath = `${billId}/${Date.now()}_${safeName}`;
 
           const { error: uploadError } = await supabase.storage
             .from(BUCKET)
@@ -150,7 +157,7 @@ export const useBillAttachments = (billId: string): UseBillAttachmentsResult => 
         }
 
         console.error("Error creating signed URL:", signedError.message);
-        setError(signedError.message);
+        setError(normalizeError(signedError));
         return null;
       }
 
@@ -159,7 +166,6 @@ export const useBillAttachments = (billId: string): UseBillAttachmentsResult => 
     []
   );
 
-  // Clear stale error when no attachments
   useEffect(() => {
     if (attachments.length === 0) {
       setError(null);
