@@ -41,12 +41,20 @@ A simple and minimal web application to track your monthly bills, payment dates,
 3.  **Set up environment variables:**
     Create a `.env` file in the root of the project and add your Supabase project credentials. You can find these in your Supabase project's dashboard under `Settings` > `API`.
 
-    ```env
-    VITE_SUPABASE_URL=your-supabase-project-url
-    VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-    ```
+### Environment Variables
 
-    > **Note:** This application relies on Supabase's Row Level Security (RLS) to be properly configured to secure user data.
+```env
+VITE_SUPABASE_URL=your-supabase-project-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+# Optional: override the storage bucket (defaults to bill-attachments)
+VITE_SUPABASE_BUCKET=bill-attachments
+```
+
+> **Note:** The app validates these keys at startup and relies on Supabase Row Level Security (RLS) policies for data privacy.
+
+### Application Config
+
+Non-sensitive defaults (Supabase bucket name, signed URL TTL, toast duration, etc.) live in [`config/app.config.json`](config/app.config.json). Feel free to adjust those values per environment while keeping secrets in `.env`.
 
 ### Running the Application
 
@@ -77,6 +85,10 @@ A simple and minimal web application to track your monthly bills, payment dates,
 
 *   All Supabase mutations call a shared `requireSession` helper; if a token expires the app automatically signs the user out and shows a toast prompting re-authentication.
 *   Protected routes remember the original URL (`/bills/:id`, query string included) and redirect back to it after the user signs in again.
+
+## Supabase Setup
+
+Refer to [`SUPABASE.md`](SUPABASE.md) for the required tables, storage bucket, and RLS policies. The document includes ready-to-run SQL snippets plus notes on seeding default categories.
 
 ## Project Structure
 

@@ -14,6 +14,7 @@ import {
   type ToastInput,
   type ToastVariant,
 } from "./ToastContext";
+import { appConfig } from "../config";
 
 const VARIANT_STYLES: Record<ToastVariant, string> = {
   info: "bg-white/70 text-slate-900 border border-white/60",
@@ -31,7 +32,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const pushToast = useCallback((toast: ToastInput) => {
     const id = toast.id ?? crypto.randomUUID();
-    const duration = toast.duration ?? 4000;
+    const duration = toast.duration ?? appConfig.ui.toastDuration ?? 4000;
     const variant = toast.variant ?? "info";
 
     setToasts((prev) => [...prev, { ...toast, id, duration, variant }]);

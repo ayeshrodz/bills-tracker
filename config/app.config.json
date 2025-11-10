@@ -1,0 +1,9 @@
+{
+  "supabase": {
+    "bucket": "bill-attachments",
+    "signedUrlTTL": 60
+  },
+  "ui": {
+    "toastDuration": 4000
+  }
+}

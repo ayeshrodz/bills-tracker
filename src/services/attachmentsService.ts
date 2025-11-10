@@ -5,8 +5,7 @@ import type {
   BillAttachment,
 } from "../types/attachments";
 import { buildAttachmentPath } from "../utils/storagePaths";
-
-const BUCKET = "bill-attachments";
+import { appConfig } from "../config";
 
 export const listAttachments = async (
   billId: string
@@ -30,7 +29,7 @@ export const uploadAttachment = async (
   const path = buildAttachmentPath(billId, file.name);
 
   const { data: storageData, error: storageError } = await supabase.storage
-    .from(BUCKET)
+    .from(appConfig.supabase.bucket)
     .upload(path, file);
 
   if (storageError) throw storageError;
@@ -66,14 +65,16 @@ export const deleteAttachmentRecord = async (id: string): Promise<void> => {
 
 export const deleteAttachmentFile = async (path: string): Promise<void> => {
   await requireSession();
-  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  const { error } = await supabase.storage
+    .from(appConfig.supabase.bucket)
+    .remove([path]);
   if (error) throw error;
 };
 
 export const createSignedUrl = async (path: string): Promise<string> => {
   const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(path, 60);
+    .from(appConfig.supabase.bucket)
+    .createSignedUrl(path, appConfig.supabase.signedUrlTTL);
 
   if (error || !data?.signedUrl) {
     throw error ?? new Error("Unable to generate signed URL");
