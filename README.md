@@ -5,6 +5,7 @@ A simple and minimal web application to track your monthly bills, payment dates,
 ## Features
 
 *   Track your recurring bills with details like bill type, amount, and payment date.
+*   Filter bills by category, date, or amount and page through large histories.
 *   Add notes to your bills for extra details.
 *   Upload file attachments (images or PDFs) for each bill.
 *   Secure authentication using Supabase.
@@ -80,6 +81,12 @@ Non-sensitive defaults (Supabase bucket name, signed URL TTL, toast duration, et
 *   **React Profiler:** Use the React DevTools Profiler to record interactions (adding/editing bills) and confirm render counts and timings before/after code changes.
 *   **Network Monitoring:** In the browser Network tab, filter for `bills` or `bill_attachments` to ensure each action issues exactly one Supabase request.
 *   **Console Timing:** When investigating a slowdown, temporarily wrap service calls in `console.time`/`console.timeEnd` to measure durations—just remove these logs before committing.
+
+## Filtering & Pagination
+
+*   The bills grid loads 25 records at a time, with a “Load more” control at the bottom when additional results are available.
+*   Filters (category, billing month/year, payment date range, amount range) live between the summary cards and the grid. Click “Apply filters” to refresh the list or “Reset” to clear.
+*   Summary cards reflect the filtered view; the footer shows how many results are currently displayed out of the filtered total.
 
 ## Authentication Flow
 

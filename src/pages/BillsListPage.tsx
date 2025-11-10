@@ -1,23 +1,50 @@
 // src/pages/BillsListPage.tsx
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useBills } from "../hooks/useBills";
 import { BillsGrid } from "../components/BillsGrid";
 import { useToast } from "../hooks/useToast";
+import { useCategories } from "../hooks/useCategories";
+import { MONTH_OPTIONS } from "../constants";
+import type { BillsFilters } from "../types/bills";
 
 export default function BillsListPage() {
-  const { bills, deleteBill, loading, error } = useBills();
+  const {
+    bills,
+    deleteBill,
+    loading,
+    loadingMore,
+    error,
+    filters,
+    totalCount,
+    hasMore,
+    loadMore,
+    setFilters,
+  } = useBills();
+  const { categories } = useCategories();
   const { toastSuccess, toastError } = useToast();
+  const [filterDraft, setFilterDraft] = useState<BillsFilters>(filters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const totalBills = useMemo(() => bills.length, [bills]);
-  const totalAmount = useMemo(
-    () => bills.reduce((sum, bill) => sum + bill.amount, 0),
-    [bills]
+  useEffect(() => {
+    setFilterDraft(filters);
+  }, [filters]);
+
+  const totalBills = useMemo(
+    () => (totalCount ?? bills.length),
+    [totalCount, bills.length]
   );
+
+  const totalAmount = useMemo(() => {
+    return bills.reduce((sum, bill) => sum + bill.amount, 0);
+  }, [bills]);
 
   const latestBill = useMemo(() => {
     if (!bills.length) return null;
-    return [...bills].sort((a, b) => a.payment_date.localeCompare(b.payment_date))[bills.length - 1];
+    const sorted = [...bills].sort((a, b) =>
+      a.payment_date.localeCompare(b.payment_date)
+    );
+    return sorted[sorted.length - 1];
   }, [bills]);
 
   const formattedTotalAmount = totalAmount.toLocaleString(undefined, {
@@ -42,6 +69,45 @@ export default function BillsListPage() {
       toastError(error);
     }
   }, [error, toastError]);
+
+  const categoryOptions = useMemo(() => {
+    const names = new Set<string>();
+    categories.forEach((cat) => names.add(cat.name));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [categories]);
+
+  const cleanFilters = (draft: BillsFilters): BillsFilters => {
+    const next: BillsFilters = {};
+    if (draft.category) next.category = draft.category;
+    if (draft.billingMonth) next.billingMonth = draft.billingMonth;
+    if (draft.billingYear) next.billingYear = draft.billingYear;
+    if (draft.dateFrom) next.dateFrom = draft.dateFrom;
+    if (draft.dateTo) next.dateTo = draft.dateTo;
+    if (typeof draft.amountMin === "number") next.amountMin = draft.amountMin;
+    if (typeof draft.amountMax === "number") next.amountMax = draft.amountMax;
+    return next;
+  };
+
+  const activeFilterCount = useMemo(
+    () =>
+      Object.values(filters).filter(
+        (value) => value !== undefined && value !== null && value !== ""
+      ).length,
+    [filters]
+  );
+
+  const handleApplyFilters = () => {
+    setFilters(cleanFilters(filterDraft));
+  };
+
+  const handleResetFilters = () => {
+    setFilterDraft({});
+    setFilters({});
+  };
+
+  const showingCount = `${bills.length}${
+    totalCount ? ` of ${totalCount}` : ""
+  }`;
 
   return (
     <div className="pt-20 px-4 pb-10 max-w-5xl mx-auto">
@@ -110,11 +176,214 @@ export default function BillsListPage() {
         </div>
       </section>
 
+      {/* Filters */}
+      <section className="mb-6 rounded-xl border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((prev) => !prev)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-slate-800"
+        >
+          <div className="flex items-center gap-2">
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                {activeFilterCount} active
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-slate-500">
+            {filtersOpen ? "Hide" : "Show"}
+          </span>
+        </button>
+
+        {filtersOpen && (
+          <div className="border-t border-slate-100 px-4 py-4">
+            <div className="grid gap-3 md:grid-cols-3">
+          <label className="flex flex-col text-xs">
+            <span className="mb-1 font-medium text-slate-600">
+              Category
+            </span>
+            <select
+              value={filterDraft.category ?? ""}
+              onChange={(e) =>
+                setFilterDraft((prev) => ({
+                  ...prev,
+                  category: e.target.value || undefined,
+                }))
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">All</option>
+              {categoryOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col text-xs">
+            <span className="mb-1 font-medium text-slate-600">
+              Billing Month
+            </span>
+            <select
+              value={filterDraft.billingMonth ?? ""}
+              onChange={(e) =>
+                setFilterDraft((prev) => ({
+                  ...prev,
+                  billingMonth: e.target.value
+                    ? Number(e.target.value)
+                    : undefined,
+                }))
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">All</option>
+              {MONTH_OPTIONS.map((monthName, index) => (
+                <option key={monthName} value={index + 1}>
+                  {monthName}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col text-xs">
+            <span className="mb-1 font-medium text-slate-600">
+              Billing Year
+            </span>
+            <input
+              type="number"
+              value={filterDraft.billingYear ?? ""}
+              onChange={(e) =>
+                setFilterDraft((prev) => ({
+                  ...prev,
+                  billingYear: e.target.value
+                    ? Number(e.target.value)
+                    : undefined,
+                }))
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="e.g. 2024"
+            />
+          </label>
+
+          <label className="flex flex-col text-xs">
+            <span className="mb-1 font-medium text-slate-600">
+              Payment Date (from)
+            </span>
+            <input
+              type="date"
+              value={filterDraft.dateFrom ?? ""}
+              onChange={(e) =>
+                setFilterDraft((prev) => ({
+                  ...prev,
+                  dateFrom: e.target.value || undefined,
+                }))
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <label className="flex flex-col text-xs">
+            <span className="mb-1 font-medium text-slate-600">
+              Payment Date (to)
+            </span>
+            <input
+              type="date"
+              value={filterDraft.dateTo ?? ""}
+              onChange={(e) =>
+                setFilterDraft((prev) => ({
+                  ...prev,
+                  dateTo: e.target.value || undefined,
+                }))
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col text-xs">
+              <span className="mb-1 font-medium text-slate-600">
+                Min amount
+              </span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={filterDraft.amountMin ?? ""}
+                onChange={(e) =>
+                  setFilterDraft((prev) => ({
+                    ...prev,
+                    amountMin: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  }))
+                }
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="flex flex-col text-xs">
+              <span className="mb-1 font-medium text-slate-600">
+                Max amount
+              </span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={filterDraft.amountMax ?? ""}
+                onChange={(e) =>
+                  setFilterDraft((prev) => ({
+                    ...prev,
+                    amountMax: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  }))
+                }
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleApplyFilters}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Apply filters
+          </button>
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Reset
+          </button>
+        </div>
+          </div>
+        )}
+      </section>
+
       {/* Content */}
       {loading ? (
         <p className="text-slate-500 text-sm">Loading bills…</p>
       ) : (
-        <BillsGrid bills={bills} onDelete={handleDelete} />
+        <>
+          <BillsGrid bills={bills} onDelete={handleDelete} />
+          <div className="mt-6 flex flex-col items-center gap-2 text-xs text-slate-500">
+            <span>Showing {showingCount} bills</span>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Loading..." : "Load more"}
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
