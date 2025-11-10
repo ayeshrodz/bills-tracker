@@ -1,30 +1,27 @@
-import { useEffect, useState } from "react";
+// src/hooks/useBills.ts
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
+import type { Bill, BillInsert, BillUpdate } from "../types/bills";
 
-export type Bill = {
-  id: string;
-  bill_type: string;
-  billing_month: number;
-  billing_year: number;
-  payment_date: string;
-  amount: number;
-  note?: string;
-  inserted_at?: string;
+// Re-export types so existing imports like `import { Bill } from "../hooks/useBills"` keep working
+export type { Bill, BillInsert, BillUpdate } from "../types/bills";
+
+type UseBillsResult = {
+  bills: Bill[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+  addBill: (bill: BillInsert) => Promise<void>;
+  updateBill: (id: string, updated: BillUpdate) => Promise<void>;
+  deleteBill: (id: string) => Promise<void>;
 };
 
-type BillInsert = Omit<Bill, "id" | "inserted_at">;
-type BillUpdate = Partial<Omit<Bill, "inserted_at">>;
-
-export function useBills() {
+export function useBills(): UseBillsResult {
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    refetch();
-  }, []);
-
-  async function refetch() {
+  const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -42,9 +39,13 @@ export function useBills() {
     }
 
     setLoading(false);
-  }
+  }, []);
 
-  async function addBill(bill: BillInsert) {
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  async function addBill(bill: BillInsert): Promise<void> {
     setError(null);
 
     const { data, error } = await supabase
@@ -64,7 +65,7 @@ export function useBills() {
     }
   }
 
-  async function updateBill(id: string, updated: BillUpdate) {
+  async function updateBill(id: string, updated: BillUpdate): Promise<void> {
     setError(null);
 
     const { data, error } = await supabase
@@ -82,15 +83,18 @@ export function useBills() {
 
     if (data) {
       setBills((prev) =>
-        prev.map((b) => (b.id === id ? (data as Bill) : b))
+        prev.map((b) => (b.id === id ? (data as Bill) : b)),
       );
     }
   }
 
-  async function deleteBill(id: string) {
+  async function deleteBill(id: string): Promise<void> {
     setError(null);
 
-    const { error } = await supabase.from("bills").delete().eq("id", id);
+    const { error } = await supabase
+      .from("bills")
+      .delete()
+      .eq("id", id);
 
     if (error) {
       console.error("Error deleting bill:", error);
@@ -105,9 +109,9 @@ export function useBills() {
     bills,
     loading,
     error,
+    refetch,
     addBill,
     updateBill,
     deleteBill,
-    refetch,
   };
 }
