@@ -1,24 +1,32 @@
-// App.tsx
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+// src/App.tsx
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import { lazy, Suspense } from "react";
-
-const BillsListPage = lazy(() => import("./pages/BillsListPage"));
-const BillFormPage = lazy(() => import("./pages/BillFormPage"));
+import BillsListPage from "./pages/BillsListPage";
+import BillFormPage from "./pages/BillFormPage";
+import LoginPage from "./pages/LoginPage";
+import { AuthProvider } from "./contexts/AuthProvider";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Navbar />
-      <main className="min-h-screen bg-slate-100 pt-16">
-        <Suspense fallback={<p className="px-4 pt-4 text-slate-500">Loading…</p>}>
+    <AuthProvider>
+      <Router>
+        <Navbar />
+        <main className="min-h-screen bg-slate-100 pt-16">
           <Routes>
-            <Route path="/" element={<BillsListPage />} />
-            <Route path="/add" element={<BillFormPage />} />
-            <Route path="/edit/:id" element={<BillFormPage />} />
+            <Route path="/login" element={<LoginPage />} />
+
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<BillsListPage />} />
+              <Route path="/add" element={<BillFormPage />} />
+              <Route path="/edit/:id" element={<BillFormPage />} />
+            </Route>
+
+            {/* Fallback: redirect unknown paths to home (could also go to /login) */}
+            {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
           </Routes>
-        </Suspense>
-      </main>
-    </BrowserRouter>
+        </main>
+      </Router>
+    </AuthProvider>
   );
 }
