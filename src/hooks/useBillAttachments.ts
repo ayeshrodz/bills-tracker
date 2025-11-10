@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { BillAttachment, AttachmentCategory } from "../types/attachments";
 import { attachmentsService } from "../services";
 import { normalizeError } from "../utils/errors";
+import { SessionExpiredError } from "../lib/errors";
+import { useAuth } from "./useAuth";
 
 type UseBillAttachmentsResult = {
   attachments: BillAttachment[];
@@ -23,6 +25,15 @@ export function useBillAttachments(
   const [attachments, setAttachments] = useState<BillAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { signOut } = useAuth();
+
+  const handleSessionExpired = useCallback(
+    (err?: SessionExpiredError) => {
+      void signOut();
+      return err?.message ?? "Session expired. Please sign in again.";
+    },
+    [signOut]
+  );
 
   const fetchAttachments = useCallback(async () => {
     if (!billId) {
@@ -38,11 +49,15 @@ export function useBillAttachments(
       setAttachments(data);
     } catch (err) {
       console.error("Error loading attachments:", err);
-      setError(normalizeError(err));
+      if (err instanceof SessionExpiredError) {
+        setError(handleSessionExpired(err));
+      } else {
+        setError(normalizeError(err));
+      }
     } finally {
       setLoading(false);
     }
-  }, [billId]);
+  }, [billId, handleSessionExpired]);
 
   useEffect(() => {
     void fetchAttachments();
@@ -70,6 +85,11 @@ export function useBillAttachments(
           );
           setAttachments((prev) => [created, ...prev]);
         } catch (err) {
+          if (err instanceof SessionExpiredError) {
+            const message = handleSessionExpired(err);
+            setError(message);
+            throw new SessionExpiredError(message);
+          }
           const message = normalizeError(err);
           errors.push(message);
           setError(message);
@@ -81,13 +101,17 @@ export function useBillAttachments(
       }
     } catch (err) {
       console.error("Unexpected error uploading attachments:", err);
+      if (err instanceof SessionExpiredError) {
+        const message = handleSessionExpired(err);
+        throw new SessionExpiredError(message);
+      }
       setError(normalizeError(err));
       throw err;
     } finally {
       setLoading(false);
     }
   },
-  [billId]
+    [billId, handleSessionExpired]
   );
 
   const deleteAttachment = useCallback(
@@ -101,13 +125,17 @@ export function useBillAttachments(
         setAttachments((prev) => prev.filter((a) => a.id !== att.id));
       } catch (err) {
         console.error("Unexpected error deleting attachment:", err);
+        if (err instanceof SessionExpiredError) {
+          const message = handleSessionExpired(err);
+          throw new SessionExpiredError(message);
+        }
         setError(normalizeError(err));
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [handleSessionExpired]
   );
 
   const getSignedUrl = useCallback(async (path: string): Promise<string | null> => {

@@ -13,8 +13,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const navigate = useNavigate();
-  const location = useLocation() as { state?: { from?: Location } };
-  const from = location.state?.from?.pathname || "/";
+  const location = useLocation() as { state?: { from?: string } };
+  const from = location.state?.from || "/";
 
   useEffect(() => {
     if (!loading && user) {

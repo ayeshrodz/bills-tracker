@@ -1,5 +1,6 @@
 // src/services/categoriesService.ts
 import { supabase } from "../lib/supabaseClient";
+import { requireSession } from "../lib/withSessionCheck";
 
 export interface BillCategory {
   id: string;
@@ -20,8 +21,8 @@ export const getCategories = async (): Promise<BillCategory[]> => {
 
 // Adds a new category for the current user
 export const addCategory = async (name: string): Promise<BillCategory> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("User not authenticated");
+  const session = await requireSession();
+  const user = session.user;
 
   const { data, error } = await supabase
     .from("bill_categories")
@@ -35,6 +36,7 @@ export const addCategory = async (name: string): Promise<BillCategory> => {
 
 // Deletes a user's category
 export const deleteCategory = async (id: string): Promise<void> => {
+  await requireSession();
   // First, get the category name to check for associated bills
   const { data: categoryData, error: categoryError } = await supabase
     .from("bill_categories")

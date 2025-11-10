@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { requireSession } from "../lib/withSessionCheck";
 import type {
   AttachmentCategory,
   BillAttachment,
@@ -25,6 +26,7 @@ export const uploadAttachment = async (
   file: File,
   fileType: AttachmentCategory = "other"
 ): Promise<BillAttachment> => {
+  await requireSession();
   const path = buildAttachmentPath(billId, file.name);
 
   const { data: storageData, error: storageError } = await supabase.storage
@@ -53,6 +55,7 @@ export const uploadAttachment = async (
 };
 
 export const deleteAttachmentRecord = async (id: string): Promise<void> => {
+  await requireSession();
   const { error } = await supabase
     .from("bill_attachments")
     .delete()
@@ -62,6 +65,7 @@ export const deleteAttachmentRecord = async (id: string): Promise<void> => {
 };
 
 export const deleteAttachmentFile = async (path: string): Promise<void> => {
+  await requireSession();
   const { error } = await supabase.storage.from(BUCKET).remove([path]);
   if (error) throw error;
 };

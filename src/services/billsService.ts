@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { requireSession } from "../lib/withSessionCheck";
 import type { Bill, BillInsert, BillUpdate } from "../types/bills";
 
 export const getBills = async (): Promise<Bill[]> => {
@@ -13,6 +14,8 @@ export const getBills = async (): Promise<Bill[]> => {
 };
 
 export const addBill = async (bill: BillInsert): Promise<Bill> => {
+  await requireSession();
+
   const { data, error } = await supabase
     .from("bills")
     .insert([bill])
@@ -27,6 +30,8 @@ export const updateBill = async (
   id: string,
   updates: BillUpdate
 ): Promise<Bill> => {
+  await requireSession();
+
   const { data, error } = await supabase
     .from("bills")
     .update(updates)
@@ -39,6 +44,8 @@ export const updateBill = async (
 };
 
 export const deleteBill = async (id: string): Promise<void> => {
+  await requireSession();
+
   const { error } = await supabase.from("bills").delete().eq("id", id);
 
   if (error) throw error;

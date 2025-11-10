@@ -16,8 +16,14 @@ export default function CategoryManagerModal({
   onClose,
 }: CategoryManagerModalProps) {
   const { user } = useAuth();
-  const { categories, loading, error, addCategory, deleteCategory } =
-    useCategories();
+  const {
+    categories,
+    loading,
+    error,
+    addCategory,
+    deleteCategory,
+    clearError,
+  } = useCategories();
   const [newCategoryName, setNewCategoryName] = useState("");
   const [adding, setAdding] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BillCategory | null>(null);
@@ -49,8 +55,9 @@ export default function CategoryManagerModal({
   useEffect(() => {
     if (error) {
       toastError(error);
+      clearError();
     }
-  }, [error, toastError]);
+  }, [error, toastError, clearError]);
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) return;

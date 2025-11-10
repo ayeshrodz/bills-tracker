@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 import type { Bill, BillInsert, BillUpdate } from "../types/bills";
 import { billsService } from "../services";
 import { normalizeError } from "../utils/errors";
+import { SessionExpiredError } from "../lib/errors";
+import { useAuth } from "./useAuth";
 
 // Re-export types so existing imports like `import { Bill } from "../hooks/useBills"` keep working
 export type { Bill, BillInsert, BillUpdate } from "../types/bills";
@@ -21,6 +23,15 @@ export function useBills(): UseBillsResult {
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const { signOut } = useAuth();
+
+  const handleSessionExpired = useCallback(
+    (err?: SessionExpiredError) => {
+      void signOut();
+      return err?.message ?? "Session expired. Please sign in again.";
+    },
+    [signOut]
+  );
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -31,11 +42,15 @@ export function useBills(): UseBillsResult {
       setBills(data);
     } catch (err) {
       console.error("Error fetching bills:", err);
-      setError(normalizeError(err));
+      if (err instanceof SessionExpiredError) {
+        setError(handleSessionExpired(err));
+      } else {
+        setError(normalizeError(err));
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [handleSessionExpired]);
 
   useEffect(() => {
     void refetch();
@@ -48,8 +63,12 @@ export function useBills(): UseBillsResult {
       const created = await billsService.addBill(bill);
       setBills((prev) => [...prev, created]);
     } catch (err) {
-      const message = normalizeError(err);
       console.error("Error adding bill:", err);
+      if (err instanceof SessionExpiredError) {
+        const message = handleSessionExpired(err);
+        throw new SessionExpiredError(message);
+      }
+      const message = normalizeError(err);
       setError(message);
       throw err instanceof Error ? err : new Error(message);
     }
@@ -63,8 +82,12 @@ export function useBills(): UseBillsResult {
       const updatedBill = await billsService.updateBill(id, updated);
       setBills((prev) => prev.map((b) => (b.id === id ? updatedBill : b)));
     } catch (err) {
-      const message = normalizeError(err);
       console.error("updateBill: Error updating bill:", err);
+      if (err instanceof SessionExpiredError) {
+        const message = handleSessionExpired(err);
+        throw new SessionExpiredError(message);
+      }
+      const message = normalizeError(err);
       setError(message);
       throw err instanceof Error ? err : new Error(message);
     }
@@ -77,8 +100,12 @@ export function useBills(): UseBillsResult {
       await billsService.deleteBill(id);
       setBills((prev) => prev.filter((b) => b.id !== id));
     } catch (err) {
-      const message = normalizeError(err);
       console.error("Error deleting bill:", err);
+      if (err instanceof SessionExpiredError) {
+        const message = handleSessionExpired(err);
+        throw new SessionExpiredError(message);
+      }
+      const message = normalizeError(err);
       setError(message);
       throw err instanceof Error ? err : new Error(message);
     }

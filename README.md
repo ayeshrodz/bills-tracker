@@ -73,6 +73,11 @@ A simple and minimal web application to track your monthly bills, payment dates,
 *   **Network Monitoring:** In the browser Network tab, filter for `bills` or `bill_attachments` to ensure each action issues exactly one Supabase request.
 *   **Console Timing:** When investigating a slowdown, temporarily wrap service calls in `console.time`/`console.timeEnd` to measure durations—just remove these logs before committing.
 
+## Authentication Flow
+
+*   All Supabase mutations call a shared `requireSession` helper; if a token expires the app automatically signs the user out and shows a toast prompting re-authentication.
+*   Protected routes remember the original URL (`/bills/:id`, query string included) and redirect back to it after the user signs in again.
+
 ## Project Structure
 
 The source code is located in the `src/` directory and is organized as follows:
