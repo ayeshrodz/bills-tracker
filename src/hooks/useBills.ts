@@ -11,6 +11,7 @@ import { normalizeError } from "../utils/errors";
 import { SessionExpiredError } from "../lib/errors";
 import { useAuth } from "./useAuth";
 import { logger } from "../utils/logger";
+import { supabase } from "../lib/supabaseClient";
 
 // Re-export types so existing imports like `import { Bill } from "../hooks/useBills"` keep working
 export type { Bill, BillInsert, BillUpdate } from "../types/bills";
@@ -48,7 +49,7 @@ export function useBills(): UseBillsResult {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   const handleSessionExpired = useCallback(
     (err?: SessionExpiredError) => {
@@ -112,15 +113,12 @@ export function useBills(): UseBillsResult {
     }
   }, [filters, handleSessionExpired]);
 
-  const refetch = useCallback(
-    async () => {
-      await Promise.all([
-        fetchBills({ nextOffset: 0, append: false }),
-        fetchSummary(),
-      ]);
-    },
-    [fetchBills, fetchSummary]
-  );
+  const refetch = useCallback(async () => {
+    await Promise.all([
+      fetchBills({ nextOffset: 0, append: false }),
+      fetchSummary(),
+    ]);
+  }, [fetchBills, fetchSummary]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -134,6 +132,30 @@ export function useBills(): UseBillsResult {
   useEffect(() => {
     void fetchSummary();
   }, [fetchSummary]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`public:bills:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bills",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void channel.unsubscribe();
+    };
+  }, [user, refetch]);
 
   const setFilters = useCallback((next: BillsFilters) => {
     setFiltersState(next);

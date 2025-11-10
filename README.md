@@ -7,7 +7,7 @@ A simple and minimal web application to track your monthly bills, payment dates,
 *   Track your recurring bills with details like bill type, amount, and payment date.
 *   Filter bills by category, date, or amount and page through large histories.
 *   Add notes to your bills for extra details.
-*   Optimistic add/edit/delete flows keep the UI responsive even on slower networks.
+*   Live Supabase Realtime updates + optimistic add/edit/delete flows keep the UI responsive even on slower networks.
 *   Upload file attachments (images or PDFs) for each bill.
 *   Secure authentication using Supabase.
 *   Clean, responsive, and minimal user interface.
@@ -88,7 +88,8 @@ Non-sensitive defaults (Supabase bucket name, signed URL TTL, toast duration, et
 *   The bills grid loads 25 records lazily; scroll to the bottom (or press “Load more”) to fetch the next page.
 *   Filters (category, billing month/year, payment date range, amount range) live between the summary cards and the grid. Click “Apply filters” to refresh the list or “Reset” to clear.
 *   The filter panel remembers whether you last left it open or closed and animates open/closed for a smoother UX.
-*   Summary cards reflect the full filtered dataset thanks to server-side aggregates, while the footer shows how many results are currently displayed out of the total.
+*   Summary cards reflect the full filtered dataset thanks to the `get_bills_summary` RPC, while the footer shows how many results are currently displayed out of the total.
+*   Supabase Realtime pushes inserts/updates/deletes to the UI so the list stays fresh without manual refreshes.
 
 ## Authentication Flow
 

@@ -139,3 +139,78 @@ with check (bucket_id = 'bill-attachments' and auth.uid() = owner);
 1. Run all SQL sections above.
 2. Confirm the bucket exists under **Storage** and that RLS policies appear under **Policies** for each table.
 3. Create a test user, sign in locally, and ensure you can add bills, attachments, and categories without API errors.
+
+## RPC: `get_bills_summary`
+
+Use the SQL below (no dynamic SQL required). It safely checks each filter key in JSON and applies the condition when present. If you previously created a different version, run the `DROP FUNCTION` statement first, then create the new one.
+
+```sql
+drop function if exists public.get_bills_summary(jsonb);
+
+create or replace function public.get_bills_summary(filters jsonb)
+returns table (
+  total_count bigint,
+  total_amount numeric,
+  latest_bill jsonb
+)
+language plpgsql
+security definer
+as $$
+begin
+  return query
+  with filtered as (
+    select *
+    from bills
+    where (coalesce(filters->>'category','') = '' or bill_type = filters->>'category')
+      and (coalesce(filters->>'billingMonth','') = '' or billing_month = (filters->>'billingMonth')::int)
+      and (coalesce(filters->>'billingYear','') = '' or billing_year = (filters->>'billingYear')::int)
+      and (coalesce(filters->>'dateFrom','') = '' or payment_date >= (filters->>'dateFrom')::date)
+      and (coalesce(filters->>'dateTo','') = '' or payment_date <= (filters->>'dateTo')::date)
+      and (coalesce(filters->>'amountMin','') = '' or amount >= (filters->>'amountMin')::numeric)
+      and (coalesce(filters->>'amountMax','') = '' or amount <= (filters->>'amountMax')::numeric)
+  )
+  select
+    (select count(*) from filtered) as total_count,
+    coalesce((select sum(amount) from filtered), 0) as total_amount,
+    (
+      select to_jsonb(sub)
+      from (
+        select *
+        from filtered
+        order by payment_date desc, billing_year desc, billing_month desc, inserted_at desc
+        limit 1
+      ) sub
+    ) as latest_bill;
+end;
+$$;
+```
+
+Re-run this statement anytime you change the filters or return shape. No helper function is required.
+> If you previously created an older version, re-run the DROP + CREATE statements above to replace it. No extra cleanup is necessary.
+
+### Manual Verification
+In the SQL editor you can run:
+```sql
+select * from public.get_bills_summary('{}'::jsonb);
+select * from public.get_bills_summary('{"category":"Internet"}'::jsonb);
+```
+to confirm the RPC returns the expected totals before wiring up the frontend.
+
+After running these statements, the frontend can call `supabase.rpc("get_bills_summary", { filters })`.
+
+## Realtime Setup
+
+1. In the Supabase dashboard, navigate to **Database → Replication → Realtime**.
+2. Enable Realtime for the `public.bills` table.
+3. The frontend subscribes via:
+   ```ts
+   supabase
+     .channel(`public:bills:${user.id}`)
+     .on(
+       "postgres_changes",
+       { event: "*", schema: "public", table: "bills", filter: `user_id=eq.${user.id}` },
+       () => { /* refresh data */ }
+     )
+     .subscribe();
+   ```
+4. RLS already limits each user to their own rows, so Realtime events will only emit for the authenticated user.

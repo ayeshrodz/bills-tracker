@@ -8,6 +8,7 @@ import type {
   BillsQuery,
   BillsFilters,
 } from "../types/bills";
+import { logger } from "../utils/logger";
 
 const createBillsQuery = () => supabase.from("bills");
 type BillsQueryBuilder = ReturnType<typeof createBillsQuery>;
@@ -71,8 +72,49 @@ export const getBills = async (
   return { data: (data as Bill[]) ?? [], count: count ?? null };
 };
 
+type BillsSummaryRow = {
+  total_count: number | null;
+  total_amount: number | null;
+  latest_bill: Bill | null;
+};
+
 export const getBillsSummary = async (
   filters: BillsFilters = {}
+): Promise<{
+  totalCount: number;
+  totalAmount: number;
+  latestBill: Bill | null;
+}> => {
+  try {
+    const { data, error } = await supabase.rpc("get_bills_summary", {
+      filters,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const row: BillsSummaryRow | undefined = Array.isArray(data)
+      ? (data[0] as BillsSummaryRow)
+      : (data as BillsSummaryRow | undefined);
+
+    if (!row) {
+      throw new Error("RPC returned no summary data");
+    }
+
+    return {
+      totalCount: Number(row.total_count ?? 0),
+      totalAmount: Number(row.total_amount ?? 0),
+      latestBill: (row.latest_bill as Bill | null) ?? null,
+    };
+  } catch (err) {
+    logger.warn("RPC get_bills_summary failed, using fallback", err);
+    return fetchSummaryFallback(filters);
+  }
+};
+
+const fetchSummaryFallback = async (
+  filters: BillsFilters
 ): Promise<{
   totalCount: number;
   totalAmount: number;
