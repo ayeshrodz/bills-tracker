@@ -22,6 +22,9 @@ type UseBillsResult = {
   error: string | null;
   filters: BillsFilters;
   totalCount: number | null;
+  totalAmount: number;
+  latestBill: Bill | null;
+  summaryLoading: boolean;
   hasMore: boolean;
   refetch: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -40,6 +43,9 @@ export function useBills(): UseBillsResult {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFiltersState] = useState<BillsFilters>({});
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [latestBill, setLatestBill] = useState<Bill | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const { signOut } = useAuth();
@@ -87,9 +93,33 @@ export function useBills(): UseBillsResult {
     [filters, handleSessionExpired]
   );
 
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const summary = await billsService.getBillsSummary(filters);
+      setTotalCount(summary.totalCount);
+      setTotalAmount(summary.totalAmount);
+      setLatestBill(summary.latestBill);
+    } catch (err) {
+      logger.error("Error fetching bills summary", err);
+      if (err instanceof SessionExpiredError) {
+        setError(handleSessionExpired(err));
+      } else {
+        setError(normalizeError(err));
+      }
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [filters, handleSessionExpired]);
+
   const refetch = useCallback(
-    async () => fetchBills({ nextOffset: 0, append: false }),
-    [fetchBills]
+    async () => {
+      await Promise.all([
+        fetchBills({ nextOffset: 0, append: false }),
+        fetchSummary(),
+      ]);
+    },
+    [fetchBills, fetchSummary]
   );
 
   const loadMore = useCallback(async () => {
@@ -98,8 +128,12 @@ export function useBills(): UseBillsResult {
   }, [fetchBills, hasMore, loadingMore, offset]);
 
   useEffect(() => {
-    void refetch();
-  }, [refetch]);
+    void fetchBills({ nextOffset: 0, append: false });
+  }, [fetchBills]);
+
+  useEffect(() => {
+    void fetchSummary();
+  }, [fetchSummary]);
 
   const setFilters = useCallback((next: BillsFilters) => {
     setFiltersState(next);
@@ -108,11 +142,22 @@ export function useBills(): UseBillsResult {
   async function addBill(bill: BillInsert): Promise<void> {
     setError(null);
 
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Bill = {
+      ...bill,
+      id: tempId,
+    };
+    setBills((prev) => [optimistic, ...prev]);
+
     try {
       const created = await billsService.addBill(bill);
-      setBills((prev) => [...prev, created]);
+      setBills((prev) =>
+        prev.map((b) => (b.id === tempId ? created : b))
+      );
+      await fetchSummary();
     } catch (err) {
       logger.error("Error adding bill", err);
+      setBills((prev) => prev.filter((b) => b.id !== tempId));
       if (err instanceof SessionExpiredError) {
         const message = handleSessionExpired(err);
         throw new SessionExpiredError(message);
@@ -125,11 +170,20 @@ export function useBills(): UseBillsResult {
 
   async function updateBill(id: string, updated: BillUpdate): Promise<void> {
     setError(null);
+    const prevBills = bills;
+    setBills((current) =>
+      current.map((b) => (b.id === id ? { ...b, ...updated } : b))
+    );
+
     try {
       const updatedBill = await billsService.updateBill(id, updated);
-      setBills((prev) => prev.map((b) => (b.id === id ? updatedBill : b)));
+      setBills((current) =>
+        current.map((b) => (b.id === id ? updatedBill : b))
+      );
+      await fetchSummary();
     } catch (err) {
       logger.error("Error updating bill", err);
+      setBills(prevBills);
       if (err instanceof SessionExpiredError) {
         const message = handleSessionExpired(err);
         throw new SessionExpiredError(message);
@@ -143,11 +197,15 @@ export function useBills(): UseBillsResult {
   async function deleteBill(id: string): Promise<void> {
     setError(null);
 
+    const previous = bills;
+    setBills((prev) => prev.filter((b) => b.id !== id));
+
     try {
       await billsService.deleteBill(id);
-      setBills((prev) => prev.filter((b) => b.id !== id));
+      await fetchSummary();
     } catch (err) {
       logger.error("Error deleting bill", err);
+      setBills(previous);
       if (err instanceof SessionExpiredError) {
         const message = handleSessionExpired(err);
         throw new SessionExpiredError(message);
@@ -165,6 +223,9 @@ export function useBills(): UseBillsResult {
     error,
     filters,
     totalCount,
+    totalAmount,
+    latestBill,
+    summaryLoading,
     hasMore,
     refetch,
     loadMore,

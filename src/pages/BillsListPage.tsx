@@ -1,5 +1,5 @@
 // src/pages/BillsListPage.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useBills } from "../hooks/useBills";
 import { BillsGrid } from "../components/BillsGrid";
@@ -9,6 +9,7 @@ import { MONTH_OPTIONS } from "../constants";
 import type { BillsFilters } from "../types/bills";
 
 export default function BillsListPage() {
+  const FILTERS_PANEL_STATE_KEY = "billsFiltersOpen";
   const {
     bills,
     deleteBill,
@@ -17,6 +18,9 @@ export default function BillsListPage() {
     error,
     filters,
     totalCount,
+    totalAmount,
+    latestBill,
+    summaryLoading,
     hasMore,
     loadMore,
     setFilters,
@@ -24,28 +28,16 @@ export default function BillsListPage() {
   const { categories } = useCategories();
   const { toastSuccess, toastError } = useToast();
   const [filterDraft, setFilterDraft] = useState<BillsFilters>(filters);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(FILTERS_PANEL_STATE_KEY) === "true";
+  });
 
   useEffect(() => {
     setFilterDraft(filters);
   }, [filters]);
 
-  const totalBills = useMemo(
-    () => (totalCount ?? bills.length),
-    [totalCount, bills.length]
-  );
-
-  const totalAmount = useMemo(() => {
-    return bills.reduce((sum, bill) => sum + bill.amount, 0);
-  }, [bills]);
-
-  const latestBill = useMemo(() => {
-    if (!bills.length) return null;
-    const sorted = [...bills].sort((a, b) =>
-      a.payment_date.localeCompare(b.payment_date)
-    );
-    return sorted[sorted.length - 1];
-  }, [bills]);
+  const totalBills = totalCount ?? bills.length;
 
   const formattedTotalAmount = totalAmount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -69,6 +61,11 @@ export default function BillsListPage() {
       toastError(error);
     }
   }, [error, toastError]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(FILTERS_PANEL_STATE_KEY, String(filtersOpen));
+  }, [filtersOpen]);
 
   const categoryOptions = useMemo(() => {
     const names = new Set<string>();
@@ -109,6 +106,28 @@ export default function BillsListPage() {
     totalCount ? ` of ${totalCount}` : ""
   }`;
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const target = loadMoreRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !loadingMore) {
+            void loadMore();
+          }
+        });
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(target);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loadMore, loadingMore]);
+
   return (
     <div className="pt-20 px-4 pb-10 max-w-5xl mx-auto">
       {/* Header + Add button */}
@@ -141,15 +160,21 @@ export default function BillsListPage() {
       {/* Dashboard summary */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-slate-800 text-white p-4 flex flex-col justify-between">
-          <p className="text-xs uppercase tracking-wide text-slate-300">
-            Total bills
+          <p className="text-xs uppercase tracking-wide text-slate-300 flex items-center gap-2">
+            <span>Total bills</span>
+            {summaryLoading && (
+              <span className="text-[10px] text-slate-400">Updating…</span>
+            )}
           </p>
           <p className="mt-2 text-2xl font-semibold">{totalBills}</p>
         </div>
 
         <div className="rounded-xl bg-white border border-slate-200 p-4 flex flex-col justify-between">
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            Total amount
+          <p className="text-xs uppercase tracking-wide text-slate-500 flex items-center gap-2">
+            <span>Total amount</span>
+            {summaryLoading && (
+              <span className="text-[10px] text-slate-400">Updating…</span>
+            )}
           </p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">
             ${formattedTotalAmount}
@@ -182,6 +207,7 @@ export default function BillsListPage() {
           type="button"
           onClick={() => setFiltersOpen((prev) => !prev)}
           className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-slate-800"
+          aria-expanded={filtersOpen}
         >
           <div className="flex items-center gap-2">
             <span>Filters</span>
@@ -196,7 +222,10 @@ export default function BillsListPage() {
           </span>
         </button>
 
-        {filtersOpen && (
+        <div
+          className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${filtersOpen ? "max-h-[1200px]" : "max-h-0"}`}
+          aria-hidden={!filtersOpen}
+        >
           <div className="border-t border-slate-100 px-4 py-4">
             <div className="grid gap-3 md:grid-cols-3">
           <label className="flex flex-col text-xs">
@@ -361,7 +390,7 @@ export default function BillsListPage() {
           </button>
         </div>
           </div>
-        )}
+        </div>
       </section>
 
       {/* Content */}
@@ -382,6 +411,7 @@ export default function BillsListPage() {
                 {loadingMore ? "Loading..." : "Load more"}
               </button>
             )}
+            <div ref={loadMoreRef} className="h-1 w-full" />
           </div>
         </>
       )}

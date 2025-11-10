@@ -1,3 +1,4 @@
+import type { PostgrestError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 import { requireSession } from "../lib/withSessionCheck";
 import type {
@@ -5,60 +6,130 @@ import type {
   BillInsert,
   BillUpdate,
   BillsQuery,
+  BillsFilters,
 } from "../types/bills";
 
-const buildQuery = (query: BillsQuery = {}) => {
-  let request = supabase
-    .from("bills")
+const createBillsQuery = () => supabase.from("bills");
+type BillsQueryBuilder = ReturnType<typeof createBillsQuery>;
+
+const applyFilters = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  request: BillsQueryBuilder | any,
+  filters: BillsFilters = {}
+) => {
+  let q = request;
+
+  if (filters.category) {
+    q = q.eq("bill_type", filters.category);
+  }
+
+  if (filters.billingMonth) {
+    q = q.eq("billing_month", filters.billingMonth);
+  }
+
+  if (filters.billingYear) {
+    q = q.eq("billing_year", filters.billingYear);
+  }
+
+  if (filters.dateFrom) {
+    q = q.gte("payment_date", filters.dateFrom);
+  }
+
+  if (filters.dateTo) {
+    q = q.lte("payment_date", filters.dateTo);
+  }
+
+  if (typeof filters.amountMin === "number") {
+    q = q.gte("amount", filters.amountMin);
+  }
+
+  if (typeof filters.amountMax === "number") {
+    q = q.lte("amount", filters.amountMax);
+  }
+
+  return q;
+};
+
+export const getBills = async (
+  query: BillsQuery = {}
+): Promise<{ data: Bill[]; count: number | null }> => {
+  let request = createBillsQuery()
     .select("*", { count: "exact" })
     .order("payment_date", { ascending: false })
     .order("billing_year", { ascending: false })
     .order("billing_month", { ascending: false });
 
-  if (query.category) {
-    request = request.eq("bill_type", query.category);
-  }
-
-  if (query.billingMonth) {
-    request = request.eq("billing_month", query.billingMonth);
-  }
-
-  if (query.billingYear) {
-    request = request.eq("billing_year", query.billingYear);
-  }
-
-  if (query.dateFrom) {
-    request = request.gte("payment_date", query.dateFrom);
-  }
-
-  if (query.dateTo) {
-    request = request.lte("payment_date", query.dateTo);
-  }
-
-  if (typeof query.amountMin === "number") {
-    request = request.gte("amount", query.amountMin);
-  }
-
-  if (typeof query.amountMax === "number") {
-    request = request.lte("amount", query.amountMax);
-  }
+  request = applyFilters(request, query);
 
   if (typeof query.limit === "number") {
     const offset = query.offset ?? 0;
     request = request.range(offset, offset + query.limit - 1);
   }
 
-  return request;
-};
-
-export const getBills = async (
-  query: BillsQuery = {}
-): Promise<{ data: Bill[]; count: number | null }> => {
-  const request = buildQuery(query);
-
   const { data, error, count } = await request;
   if (error) throw error;
   return { data: (data as Bill[]) ?? [], count: count ?? null };
+};
+
+export const getBillsSummary = async (
+  filters: BillsFilters = {}
+): Promise<{
+  totalCount: number;
+  totalAmount: number;
+  latestBill: Bill | null;
+}> => {
+  const countQuery = applyFilters(
+    createBillsQuery().select("*", { count: "exact", head: true }),
+    filters
+  );
+  const { count, error: countError } = await countQuery;
+  if (countError) throw countError;
+
+  let totalAmount = 0;
+  try {
+    const sumQuery = applyFilters(
+      createBillsQuery().select("sum:amount.sum()").single(),
+      filters
+    );
+    const { data: sumData, error: sumError } = await sumQuery;
+    if (sumError) throw sumError;
+    totalAmount = Number(sumData?.sum ?? 0);
+  } catch (err) {
+    const pgErr = err as PostgrestError;
+    if (pgErr?.code === "PGRST123") {
+      const fallbackQuery = applyFilters(
+        createBillsQuery().select("amount"),
+        filters
+      );
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+      if (fallbackError) throw fallbackError;
+      totalAmount =
+        fallbackData?.reduce(
+          (acc: number, row: { amount: number }) => acc + Number(row.amount ?? 0),
+          0
+        ) ?? 0;
+    } else {
+      throw err;
+    }
+  }
+
+  const latestQuery = applyFilters(
+    createBillsQuery()
+      .select("*")
+      .order("payment_date", { ascending: false })
+      .order("billing_year", { ascending: false })
+      .order("billing_month", { ascending: false })
+      .limit(1),
+    filters
+  );
+  const { data: latestData, error: latestError } = await latestQuery;
+  if (latestError) throw latestError;
+
+  return {
+    totalCount: count ?? 0,
+    totalAmount,
+    latestBill: latestData?.[0] ? (latestData[0] as Bill) : null,
+  };
 };
 
 export const addBill = async (bill: BillInsert): Promise<Bill> => {
