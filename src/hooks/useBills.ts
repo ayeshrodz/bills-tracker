@@ -67,6 +67,7 @@ export function useBills(): UseBillsResult {
 
   async function updateBill(id: string, updated: BillUpdate): Promise<void> {
     setError(null);
+    console.log("updateBill: Attempting to update bill with ID:", id, "and data:", updated);
 
     const { data, error } = await supabase
       .from("bills")
@@ -76,16 +77,18 @@ export function useBills(): UseBillsResult {
       .single();
 
     if (error) {
-      console.error("Error updating bill:", error);
+      console.error("updateBill: Error updating bill:", error);
       setError(error.message);
       return;
     }
 
     if (data) {
+      console.log("updateBill: Successfully updated bill:", data);
       setBills((prev) =>
         prev.map((b) => (b.id === id ? (data as Bill) : b)),
       );
     }
+    console.log("updateBill: Function finished.");
   }
 
   async function deleteBill(id: string): Promise<void> {

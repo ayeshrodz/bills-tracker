@@ -6,7 +6,6 @@ import BillFormPage from "./pages/BillFormPage";
 import LoginPage from "./pages/LoginPage";
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import CategoriesPage from "./pages/CategoriesPage";
 
 export default function App() {
   return (
@@ -24,7 +23,6 @@ export default function App() {
               <Route path="/" element={<BillsListPage />} />
               <Route path="/bills/new" element={<BillFormPage />} />
               <Route path="/bills/:id" element={<BillFormPage />} />
-              <Route path="/categories" element={<CategoriesPage />} />
             </Route>
 
             {/* Optional: catch-all redirect */}

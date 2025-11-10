@@ -6,7 +6,7 @@ export default function Navbar() {
   const { user, signOut } = useAuth();
 
   return (
-    <nav className="bg-slate-800 text-white px-6 py-3 fixed top-0 left-0 right-0 shadow-md z-50">
+    <nav className="bg-slate-800 text-white px-6 py-3 fixed top-0 left-0 right-0 shadow-md z-40">
       <div className="flex items-center justify-between max-w-5xl mx-auto">
         <Link to="/" className="text-lg font-semibold tracking-tight">
           Bills Tracker
@@ -16,9 +16,6 @@ export default function Navbar() {
             <span className="hidden sm:inline text-slate-200 truncate max-w-[180px]">
               {user.email}
             </span>
-            <Link to="/categories" className="text-slate-300 hover:text-white">
-              Categories
-            </Link>
             <button
               type="button"
               onClick={() => void signOut()}

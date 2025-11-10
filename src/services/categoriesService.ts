@@ -35,6 +35,33 @@ export const addCategory = async (name: string): Promise<BillCategory> => {
 
 // Deletes a user's category
 export const deleteCategory = async (id: string): Promise<void> => {
+  // First, get the category name to check for associated bills
+  const { data: categoryData, error: categoryError } = await supabase
+    .from("bill_categories")
+    .select("name")
+    .eq("id", id)
+    .single();
+
+  if (categoryError) throw categoryError;
+  if (!categoryData) throw new Error("Category not found.");
+
+  const categoryName = categoryData.name;
+
+  // Check if any bills are using this category
+  const { count, error: billsError } = await supabase
+    .from("bills")
+    .select("id", { count: "exact" })
+    .eq("bill_type", categoryName);
+
+  if (billsError) throw billsError;
+
+  if (count && count > 0) {
+    throw new Error(
+      `Cannot delete category "${categoryName}" because ${count} bill(s) are associated with it.`
+    );
+  }
+
+  // If no bills are associated, proceed with deletion
   const { error } = await supabase
     .from("bill_categories")
     .delete()

@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
+import { useCallback } from "react";
 import { useBills } from "../hooks/useBills";
 import { BillForm } from "../components/BillForm";
 import type { Bill } from "../hooks/useBills";
@@ -14,14 +15,23 @@ export default function BillFormPage() {
     : null;
 
   const handleSave = async (bill: Omit<Bill, "id">, editingId?: string | null) => {
+    console.log("handleSave called with editingId:", editingId);
     if (editingId) {
+      console.log("Calling updateBill...");
       await updateBill(editingId, bill);
+      console.log("updateBill finished. Navigating to /");
       navigate("/");
     } else {
+      console.log("Calling addBill...");
       await addBill(bill);
+      console.log("addBill finished. Navigating to /");
       navigate("/");
     }
   };
+
+  const handleCancel = useCallback(() => {
+    navigate("/");
+  }, [navigate]);
 
   return (
     <div className="pt-20 px-4 pb-10 max-w-2xl mx-auto">
@@ -31,7 +41,7 @@ export default function BillFormPage() {
 
       <BillForm
         onSave={handleSave}
-        onCancel={() => navigate("/")}
+        onCancel={handleCancel}
         editingBill={editingBill}
       />
 

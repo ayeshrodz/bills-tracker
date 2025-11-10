@@ -15,7 +15,7 @@ type UseBillAttachmentsResult = {
     fileType?: AttachmentCategory
   ) => Promise<void>;
   deleteAttachment: (att: BillAttachment) => Promise<void>;
-  getPublicUrl: (path: string) => string;
+  getSignedUrl: (path: string) => Promise<string | null>;
   refetch: () => Promise<void>;
 };
 
@@ -158,9 +158,16 @@ export function useBillAttachments(
     }
   }
 
-  function getPublicUrl(path: string): string {
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-    return data.publicUrl;
+  async function getSignedUrl(path: string): Promise<string | null> {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, 60); // 60 seconds expiry
+
+    if (error) {
+      console.error("Error creating signed URL:", error);
+      return null;
+    }
+    return data.signedUrl;
   }
 
   return {
@@ -169,7 +176,7 @@ export function useBillAttachments(
     error,
     uploadFiles,
     deleteAttachment,
-    getPublicUrl,
+    getSignedUrl,
     refetch: fetchAttachments,
   };
 }

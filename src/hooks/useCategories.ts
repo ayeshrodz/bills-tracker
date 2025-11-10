@@ -14,8 +14,8 @@ export const useCategories = () => {
       setError(null);
       const data = await categoriesService.getCategories();
       setCategories(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -29,8 +29,8 @@ export const useCategories = () => {
     try {
       const newCategory = await categoriesService.addCategory(name);
       setCategories((prev) => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
@@ -38,8 +38,8 @@ export const useCategories = () => {
     try {
       await categoriesService.deleteCategory(id);
       setCategories((prev) => prev.filter((c) => c.id !== id));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
