@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import type { Bill } from "../hooks/useBills";
 
+// Bill type options
 const billOptions = [
   "Daycare",
   "Electricity",
@@ -11,6 +12,11 @@ const billOptions = [
   "Car Insurance",
 ];
 
+// Dynamically generate month names (localized)
+const monthOptions = Array.from({ length: 12 }, (_, i) =>
+  new Date(0, i).toLocaleString("default", { month: "long" })
+);
+
 type Props = {
   onSave: (bill: Omit<Bill, "id">, editingId?: string | null) => void;
   onCancel: () => void;
@@ -19,7 +25,7 @@ type Props = {
 
 export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
   const [billType, setBillType] = useState(billOptions[0]);
-  const [billingMonth, setBillingMonth] = useState(new Date().getMonth() + 1);
+  const [billingMonth, setBillingMonth] = useState(new Date().getMonth() + 1); // 1–12
   const [billingYear, setBillingYear] = useState(new Date().getFullYear());
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -62,73 +68,101 @@ export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-3 mb-6">
-      <div className="grid grid-cols-2 gap-3">
-        <select
-          value={billType}
-          onChange={(e) => setBillType(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2"
-        >
-          {billOptions.map((opt) => (
-            <option key={opt}>{opt}</option>
-          ))}
-        </select>
+    <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+      {/* Bill Type & Amount */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label className="flex flex-col text-sm">
+          <span className="mb-1 font-medium text-slate-700">Bill Type</span>
+          <select
+            value={billType}
+            onChange={(e) => setBillType(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            {billOptions.map((opt) => (
+              <option key={opt}>{opt}</option>
+            ))}
+          </select>
+        </label>
 
-        <input
-          type="number"
-          placeholder="Amount"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2"
-          step="0.01"
-          required
-        />
+        <label className="flex flex-col text-sm">
+          <span className="mb-1 font-medium text-slate-700">Amount</span>
+          <input
+            type="number"
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            step="0.01"
+            min={0}
+            required
+          />
+        </label>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <input
-          type="number"
-          placeholder="Month"
-          min={1}
-          max={12}
-          value={billingMonth}
-          onChange={(e) => setBillingMonth(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2"
-        />
-        <input
-          type="number"
-          placeholder="Year"
-          value={billingYear}
-          onChange={(e) => setBillingYear(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2"
-        />
-        <input
-          type="date"
-          value={paymentDate}
-          onChange={(e) => setPaymentDate(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2"
-        />
+      {/* Month, Year, and Payment Date */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <label className="flex flex-col text-sm">
+          <span className="mb-1 font-medium text-slate-700">Billing Month</span>
+          <select
+            value={billingMonth}
+            onChange={(e) => setBillingMonth(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            {monthOptions.map((monthName, index) => (
+              <option key={monthName} value={index + 1}>
+                {monthName}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col text-sm">
+          <span className="mb-1 font-medium text-slate-700">Billing Year</span>
+          <input
+            type="number"
+            value={billingYear}
+            onChange={(e) => setBillingYear(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
+
+        <label className="flex flex-col text-sm">
+          <span className="mb-1 font-medium text-slate-700">Payment Date</span>
+          <input
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
       </div>
 
-      <textarea
-        placeholder="Note"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        className="rounded-lg border border-slate-300 px-3 py-2"
-      />
+      {/* Note */}
+      <label className="flex flex-col text-sm">
+        <span className="mb-1 font-medium text-slate-700">
+          Note <span className="font-normal text-slate-400">(optional)</span>
+        </span>
+        <textarea
+          placeholder="Any extra details about this bill…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm min-h-[80px]"
+        />
+      </label>
 
-      <div className="flex gap-2 justify-end">
+      {/* Buttons */}
+      <div className="flex flex-col sm:flex-row gap-2 justify-end">
         <button
           type="submit"
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700"
+          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 w-full sm:w-auto"
         >
-          {editingBill ? "Save" : "Add Bill"}
+          {editingBill ? "Save Changes" : "Add Bill"}
         </button>
         {editingBill && (
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100"
+            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm hover:bg-slate-100 w-full sm:w-auto"
           >
             Cancel
           </button>

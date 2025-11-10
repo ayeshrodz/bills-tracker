@@ -1,18 +1,25 @@
+import { Link } from "react-router-dom";
 import type { Bill } from "../hooks/useBills";
 
 type Props = {
   bills: Bill[];
-  onEdit: (bill: Bill) => void;
   onDelete: (id: string) => void;
 };
 
-export const BillTable = ({ bills, onEdit, onDelete }: Props) => {
+export const BillTable = ({ bills, onDelete }: Props) => {
   if (bills.length === 0)
-    return <p className="text-slate-500">No bills yet. Add one above.</p>;
+    return (
+      <p className="text-slate-500 text-center">
+        No bills yet. Add one above.
+      </p>
+    );
+
+  const monthName = (num: number) =>
+    new Date(0, num - 1).toLocaleString("default", { month: "long" });
 
   return (
-    <table className="min-w-full text-sm text-left">
-      <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+    <table className="w-full text-sm text-left border border-slate-200 rounded-lg overflow-hidden">
+      <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
         <tr>
           <th className="px-4 py-3">Type</th>
           <th className="px-4 py-3">Month/Year</th>
@@ -29,20 +36,20 @@ export const BillTable = ({ bills, onEdit, onDelete }: Props) => {
           >
             <td className="px-4 py-3">{b.bill_type}</td>
             <td className="px-4 py-3">
-              {b.billing_month}/{b.billing_year}
+              {monthName(b.billing_month)} {b.billing_year}
             </td>
             <td className="px-4 py-3">{b.payment_date}</td>
             <td className="px-4 py-3">${b.amount.toFixed(2)}</td>
             <td className="px-4 py-3 text-right">
-              <button
-                onClick={() => onEdit(b)}
-                className="px-3 py-1.5 mr-2 rounded-md border border-slate-300 text-xs text-slate-700 hover:bg-slate-100"
+              <Link
+                to={`/edit/${b.id}`}
+                className="px-3 py-2 mr-2 rounded-md border border-slate-300 text-sm text-slate-700 hover:bg-slate-100 inline-flex items-center"
               >
                 Edit
-              </button>
+              </Link>
               <button
                 onClick={() => onDelete(b.id)}
-                className="px-3 py-1.5 rounded-md bg-red-500 text-xs text-white hover:bg-red-600"
+                className="px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700"
               >
                 Delete
               </button>
