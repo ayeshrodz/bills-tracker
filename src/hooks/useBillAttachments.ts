@@ -59,28 +59,35 @@ export function useBillAttachments(
       setError(null);
       setLoading(true);
 
-      try {
-        for (const file of fileArray) {
-          try {
-            const created = await attachmentsService.uploadAttachment(
-              billId,
-              file,
-              fileType
-            );
-            setAttachments((prev) => [created, ...prev]);
-          } catch (err) {
-            console.error("Error uploading single attachment:", err);
-            setError(normalizeError(err));
-          }
+    try {
+      const errors: string[] = [];
+      for (const file of fileArray) {
+        try {
+          const created = await attachmentsService.uploadAttachment(
+            billId,
+            file,
+            fileType
+          );
+          setAttachments((prev) => [created, ...prev]);
+        } catch (err) {
+          const message = normalizeError(err);
+          errors.push(message);
+          setError(message);
         }
-      } catch (err) {
-        console.error("Unexpected error uploading attachments:", err);
-        setError(normalizeError(err));
-      } finally {
-        setLoading(false);
       }
-    },
-    [billId]
+
+      if (errors.length) {
+        throw new Error(errors.join(", "));
+      }
+    } catch (err) {
+      console.error("Unexpected error uploading attachments:", err);
+      setError(normalizeError(err));
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  },
+  [billId]
   );
 
   const deleteAttachment = useCallback(
@@ -95,6 +102,7 @@ export function useBillAttachments(
       } catch (err) {
         console.error("Unexpected error deleting attachment:", err);
         setError(normalizeError(err));
+        throw err;
       } finally {
         setLoading(false);
       }

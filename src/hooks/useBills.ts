@@ -48,8 +48,10 @@ export function useBills(): UseBillsResult {
       const created = await billsService.addBill(bill);
       setBills((prev) => [...prev, created]);
     } catch (err) {
+      const message = normalizeError(err);
       console.error("Error adding bill:", err);
-      setError(normalizeError(err));
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   }
 
@@ -61,8 +63,10 @@ export function useBills(): UseBillsResult {
       const updatedBill = await billsService.updateBill(id, updated);
       setBills((prev) => prev.map((b) => (b.id === id ? updatedBill : b)));
     } catch (err) {
+      const message = normalizeError(err);
       console.error("updateBill: Error updating bill:", err);
-      setError(normalizeError(err));
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   }
 
@@ -73,8 +77,10 @@ export function useBills(): UseBillsResult {
       await billsService.deleteBill(id);
       setBills((prev) => prev.filter((b) => b.id !== id));
     } catch (err) {
+      const message = normalizeError(err);
       console.error("Error deleting bill:", err);
-      setError(normalizeError(err));
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   }
 

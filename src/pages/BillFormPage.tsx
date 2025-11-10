@@ -4,28 +4,33 @@ import { useBills } from "../hooks/useBills";
 import { BillForm } from "../components/BillForm";
 import type { Bill } from "../hooks/useBills";
 import { BillAttachmentsPanel } from "../components/BillAttachmentsPanel";
+import { useToast } from "../hooks/useToast";
 
 export default function BillFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { bills, addBill, updateBill } = useBills();
+  const { toastSuccess, toastError } = useToast();
 
   const editingBill: Bill | null = id
     ? bills.find((b) => b.id === id) || null
     : null;
 
-  const handleSave = async (bill: Omit<Bill, "id">, editingId?: string | null) => {
-    console.log("handleSave called with editingId:", editingId);
-    if (editingId) {
-      console.log("Calling updateBill...");
-      await updateBill(editingId, bill);
-      console.log("updateBill finished. Navigating to /");
+  const handleSave = async (
+    bill: Omit<Bill, "id">,
+    editingId?: string | null
+  ) => {
+    try {
+      if (editingId) {
+        await updateBill(editingId, bill);
+        toastSuccess("Bill updated");
+      } else {
+        await addBill(bill);
+        toastSuccess("Bill added");
+      }
       navigate("/");
-    } else {
-      console.log("Calling addBill...");
-      await addBill(bill);
-      console.log("addBill finished. Navigating to /");
-      navigate("/");
+    } catch (err) {
+      toastError(err);
     }
   };
 

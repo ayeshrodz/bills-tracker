@@ -1,10 +1,12 @@
 // src/components/BillsGrid.tsx
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { Bill } from "../hooks/useBills";
+import ConfirmDialog from "./ConfirmDialog";
 
 type Props = {
   bills: Bill[];
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
 };
 
 const formatMonthYear = (bill: Bill) => {
@@ -16,6 +18,26 @@ const formatMonthYear = (bill: Bill) => {
 };
 
 export const BillsGrid = ({ bills, onDelete }: Props) => {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  const handleDeleteClick = (id: string) => {
+    setPendingDeleteId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    setConfirmLoading(true);
+    try {
+      await onDelete(pendingDeleteId);
+    } catch (err) {
+      console.error("Failed to delete bill:", err);
+    } finally {
+      setConfirmLoading(false);
+      setPendingDeleteId(null);
+    }
+  };
+
   if (!bills.length) {
     return (
       <p className="text-slate-500 text-center py-10">
@@ -26,7 +48,8 @@ export const BillsGrid = ({ bills, onDelete }: Props) => {
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {bills.map((b) => (
         <article
           key={b.id}
@@ -66,7 +89,7 @@ export const BillsGrid = ({ bills, onDelete }: Props) => {
             </Link>
             <button
               type="button"
-              onClick={() => onDelete(b.id)}
+              onClick={() => handleDeleteClick(b.id)}
               className="inline-flex items-center px-3 py-2 rounded-md bg-red-600 text-sm text-white hover:bg-red-700"
             >
               Delete
@@ -74,6 +97,17 @@ export const BillsGrid = ({ bills, onDelete }: Props) => {
           </div>
         </article>
       ))}
-    </div>
+      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Delete bill?"
+        description="This bill and its attachments will be permanently removed."
+        confirmLabel="Delete"
+        destructive
+        confirmLoading={confirmLoading}
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={handleConfirmDelete}
+      />
+    </>
   );
 };

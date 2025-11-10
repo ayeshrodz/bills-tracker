@@ -28,9 +28,14 @@ export const useCategories = () => {
   const addCategory = async (name: string) => {
     try {
       const newCategory = await categoriesService.addCategory(name);
-      setCategories((prev) => [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name)));
+      setCategories((prev) =>
+        [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      return newCategory;
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 
@@ -39,7 +44,9 @@ export const useCategories = () => {
       await categoriesService.deleteCategory(id);
       setCategories((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   };
 

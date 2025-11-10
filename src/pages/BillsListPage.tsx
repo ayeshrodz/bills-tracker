@@ -1,24 +1,47 @@
 // src/pages/BillsListPage.tsx
+import { useCallback, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useBills } from "../hooks/useBills";
 import { BillsGrid } from "../components/BillsGrid";
+import { useToast } from "../hooks/useToast";
 
 export default function BillsListPage() {
   const { bills, deleteBill, loading, error } = useBills();
+  const { toastSuccess, toastError } = useToast();
 
-  const totalBills = bills.length;
-  const totalAmount = bills.reduce((sum, bill) => sum + bill.amount, 0);
+  const totalBills = useMemo(() => bills.length, [bills]);
+  const totalAmount = useMemo(
+    () => bills.reduce((sum, bill) => sum + bill.amount, 0),
+    [bills]
+  );
 
-  const latestBill = bills.length
-    ? [...bills].sort((a, b) =>
-        a.payment_date.localeCompare(b.payment_date)
-      )[bills.length - 1]
-    : null;
+  const latestBill = useMemo(() => {
+    if (!bills.length) return null;
+    return [...bills].sort((a, b) => a.payment_date.localeCompare(b.payment_date))[bills.length - 1];
+  }, [bills]);
 
   const formattedTotalAmount = totalAmount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteBill(id);
+        toastSuccess("Bill deleted");
+      } catch (err) {
+        toastError(err);
+      }
+    },
+    [deleteBill, toastSuccess, toastError]
+  );
+
+  useEffect(() => {
+    if (error) {
+      toastError(error);
+    }
+  }, [error, toastError]);
 
   return (
     <div className="pt-20 px-4 pb-10 max-w-5xl mx-auto">
@@ -91,7 +114,7 @@ export default function BillsListPage() {
       {loading ? (
         <p className="text-slate-500 text-sm">Loading bills…</p>
       ) : (
-        <BillsGrid bills={bills} onDelete={deleteBill} />
+        <BillsGrid bills={bills} onDelete={handleDelete} />
       )}
     </div>
   );

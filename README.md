@@ -67,6 +67,12 @@ A simple and minimal web application to track your monthly bills, payment dates,
     npm run lint
     ```
 
+## Profiling & Debugging Tips
+
+*   **React Profiler:** Use the React DevTools Profiler to record interactions (adding/editing bills) and confirm render counts and timings before/after code changes.
+*   **Network Monitoring:** In the browser Network tab, filter for `bills` or `bill_attachments` to ensure each action issues exactly one Supabase request.
+*   **Console Timing:** When investigating a slowdown, temporarily wrap service calls in `console.time`/`console.timeEnd` to measure durations—just remove these logs before committing.
+
 ## Project Structure
 
 The source code is located in the `src/` directory and is organized as follows:

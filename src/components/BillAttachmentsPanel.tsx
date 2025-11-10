@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useBillAttachments } from "../hooks/useBillAttachments";
+import { useToast } from "../hooks/useToast";
+import ConfirmDialog from "./ConfirmDialog";
+import type { BillAttachment } from "../types/attachments";
 
 type Props = {
   billId: string;
@@ -18,6 +21,12 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
   const [signedUrls, setSignedUrls] = useState<Record<string, string | null>>(
     {}
   );
+  const [uploading, setUploading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<BillAttachment | null>(
+    null
+  );
+  const [deleting, setDeleting] = useState(false);
+  const { toastSuccess, toastError } = useToast();
 
   // Pre-fetch signed URLs whenever attachments change
   useEffect(() => {
@@ -48,11 +57,41 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
     };
   }, [attachments, getSignedUrl]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    // For now treat all as "other". You could add separate inputs for 'bill' vs 'payment'.
-    void uploadFiles(e.target.files, "other");
-    e.target.value = "";
+  useEffect(() => {
+    if (error) {
+      toastError(error);
+    }
+  }, [error, toastError]);
+
+  const handleFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = e.target;
+    if (!input.files) return;
+    setUploading(true);
+    try {
+      await uploadFiles(input.files, "other");
+      toastSuccess("Attachments uploaded");
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setUploading(false);
+      input.value = "";
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteAttachment(pendingDelete);
+      toastSuccess("Attachment deleted");
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
+    }
   };
 
   return (
@@ -65,7 +104,7 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
       </p>
 
       <div className="mb-4">
-        <label className="inline-flex items-center px-3 py-2 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer">
+        <label className="inline-flex items-center px-3 py-2 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-60">
           <span>Upload files</span>
           <input
             type="file"
@@ -73,8 +112,12 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
             multiple
             accept="image/*,application/pdf"
             onChange={handleFileChange}
+            disabled={uploading}
           />
         </label>
+        {uploading && (
+          <p className="text-xs text-slate-500 mt-2">Uploading…</p>
+        )}
       </div>
 
       {error && (
@@ -114,7 +157,7 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
               </div>
               <button
                 type="button"
-                onClick={() => deleteAttachment(att)}
+                onClick={() => setPendingDelete(att)}
                 className="shrink-0 rounded-md bg-red-600 px-2.5 py-1 text-xs text-white hover:bg-red-700"
               >
                 Delete
@@ -123,6 +166,24 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete attachment?"
+        description={
+          pendingDelete ? (
+            <>
+              <span className="font-semibold">{pendingDelete.file_name}</span>{" "}
+              will be removed permanently.
+            </>
+          ) : null
+        }
+        confirmLabel="Delete"
+        destructive
+        confirmLoading={deleting}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </section>
   );
 };
