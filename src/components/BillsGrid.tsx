@@ -59,7 +59,7 @@ export const BillsGrid = ({ bills, onDelete }: Props) => {
 
           <div className="mt-4 flex justify-end gap-2">
             <Link
-              to={`/edit/${b.id}`}
+              to={`/bills/${b.id}`}
               className="inline-flex items-center px-3 py-2 rounded-md border border-slate-300 text-sm text-slate-700 hover:bg-slate-100"
             >
               Edit

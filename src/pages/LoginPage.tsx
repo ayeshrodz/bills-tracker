@@ -1,11 +1,11 @@
 // src/pages/LoginPage.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 export default function LoginPage() {
-  const { signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,6 +15,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation() as { state?: { from?: Location } };
   const from = location.state?.from?.pathname || "/";
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate(from, { replace: true });
+    }
+  }, [user, loading, navigate, from]);
 
   const title = mode === "signin" ? "Sign in" : "Create account";
 
@@ -44,6 +50,14 @@ export default function LoginPage() {
       navigate(from, { replace: true });
     }
   };
+
+  if (loading || user) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <p className="text-slate-500 text-sm">Checking session…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
