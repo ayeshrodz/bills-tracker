@@ -12,10 +12,13 @@ export default function Navbar() {
           Bills Tracker
         </Link>
         {user && (
-          <div className="flex items-center gap-3 text-xs sm:text-sm">
+          <div className="flex items-center gap-4 text-xs sm:text-sm">
             <span className="hidden sm:inline text-slate-200 truncate max-w-[180px]">
               {user.email}
             </span>
+            <Link to="/categories" className="text-slate-300 hover:text-white">
+              Categories
+            </Link>
             <button
               type="button"
               onClick={() => void signOut()}

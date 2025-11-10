@@ -1,21 +1,8 @@
 import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import type { Bill } from "../hooks/useBills";
-
-// Bill type options
-const billOptions = [
-  "Daycare",
-  "Electricity",
-  "House Rent",
-  "Mobile",
-  "Internet",
-  "Car Insurance",
-];
-
-// Dynamically generate month names (localized)
-const monthOptions = Array.from({ length: 12 }, (_, i) =>
-  new Date(0, i).toLocaleString("default", { month: "long" })
-);
+import { useCategories } from "../hooks/useCategories";
+import { MONTH_OPTIONS } from "../constants";
 
 type Props = {
   onSave: (bill: Omit<Bill, "id">, editingId?: string | null) => void;
@@ -24,7 +11,8 @@ type Props = {
 };
 
 export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
-  const [billType, setBillType] = useState(billOptions[0]);
+  const { categories, loading: categoriesLoading } = useCategories();
+  const [billType, setBillType] = useState("");
   const [billingMonth, setBillingMonth] = useState(new Date().getMonth() + 1); // 1–12
   const [billingYear, setBillingYear] = useState(new Date().getFullYear());
   const [paymentDate, setPaymentDate] = useState(
@@ -43,14 +31,17 @@ export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
       setAmount(editingBill.amount.toString());
       setNote(editingBill.note || "");
     } else {
-      setBillType(billOptions[0]);
+      // If we have categories, set the default bill type
+      if (categories.length > 0) {
+        setBillType(categories[0].name);
+      }
       setBillingMonth(now.getMonth() + 1);
       setBillingYear(now.getFullYear());
       setPaymentDate(now.toISOString().split("T")[0]);
       setAmount("");
       setNote("");
     }
-  }, [editingBill]);
+  }, [editingBill, categories]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -77,10 +68,17 @@ export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
             value={billType}
             onChange={(e) => setBillType(e.target.value)}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            disabled={categoriesLoading}
           >
-            {billOptions.map((opt) => (
-              <option key={opt}>{opt}</option>
-            ))}
+            {categoriesLoading ? (
+              <option>Loading...</option>
+            ) : (
+              categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))
+            )}
           </select>
         </label>
 
@@ -108,7 +106,7 @@ export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
             onChange={(e) => setBillingMonth(Number(e.target.value))}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
-            {monthOptions.map((monthName, index) => (
+            {MONTH_OPTIONS.map((monthName, index) => (
               <option key={monthName} value={index + 1}>
                 {monthName}
               </option>
