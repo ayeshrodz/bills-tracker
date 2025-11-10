@@ -28,4 +28,5 @@ export type BillsFilters = {
 export type BillsQuery = BillsFilters & {
   limit?: number;
   offset?: number;
+  withCount?: boolean;
 };

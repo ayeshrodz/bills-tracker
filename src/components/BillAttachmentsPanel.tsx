@@ -11,51 +11,19 @@ type Props = {
 export const BillAttachmentsPanel = ({ billId }: Props) => {
   const {
     attachments,
+    signedUrls,
     loading,
     error,
     uploadFiles,
     deleteAttachment,
-    getSignedUrl,
   } = useBillAttachments(billId);
 
-  const [signedUrls, setSignedUrls] = useState<Record<string, string | null>>(
-    {}
-  );
   const [uploading, setUploading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BillAttachment | null>(
     null
   );
   const [deleting, setDeleting] = useState(false);
   const { toastSuccess, toastError } = useToast();
-
-  // Pre-fetch signed URLs whenever attachments change
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadSignedUrls = async () => {
-      if (!attachments.length) {
-        if (!cancelled) setSignedUrls({});
-        return;
-      }
-
-      const entries = await Promise.all(
-        attachments.map(async (att) => {
-          const url = await getSignedUrl(att.file_path);
-          return [att.file_path, url] as const;
-        })
-      );
-
-      if (!cancelled) {
-        setSignedUrls(Object.fromEntries(entries));
-      }
-    };
-
-    void loadSignedUrls();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [attachments, getSignedUrl]);
 
   useEffect(() => {
     if (error) {

@@ -60,21 +60,36 @@ export function useBills(): UseBillsResult {
   );
 
   const fetchBills = useCallback(
-    async ({ nextOffset = 0, append = false } = {}) => {
+    async ({
+      nextOffset = 0,
+      append = false,
+      forceCount = false,
+    }: {
+      nextOffset?: number;
+      append?: boolean;
+      forceCount?: boolean;
+    } = {}) => {
       if (append) setLoadingMore(true);
       else setLoading(true);
       setError(null);
 
       try {
+        const shouldIncludeCount = forceCount || (!append && nextOffset === 0);
         const { data, count } = await billsService.getBills({
           ...filters,
           limit: PAGE_SIZE,
           offset: nextOffset,
+          withCount: shouldIncludeCount,
         });
-        setTotalCount(count ?? null);
+        if (shouldIncludeCount) {
+          setTotalCount(count ?? null);
+        }
+        const effectiveTotal = shouldIncludeCount
+          ? count ?? null
+          : totalCount;
         setHasMore(
-          count != null
-            ? nextOffset + data.length < count
+          effectiveTotal != null
+            ? nextOffset + data.length < effectiveTotal
             : data.length === PAGE_SIZE
         );
         setOffset(nextOffset);
@@ -91,7 +106,7 @@ export function useBills(): UseBillsResult {
         else setLoading(false);
       }
     },
-    [filters, handleSessionExpired]
+    [filters, handleSessionExpired, totalCount]
   );
 
   const fetchSummary = useCallback(async () => {
@@ -115,7 +130,7 @@ export function useBills(): UseBillsResult {
 
   const refetch = useCallback(async () => {
     await Promise.all([
-      fetchBills({ nextOffset: 0, append: false }),
+      fetchBills({ nextOffset: 0, append: false, forceCount: true }),
       fetchSummary(),
     ]);
   }, [fetchBills, fetchSummary]);
@@ -126,12 +141,8 @@ export function useBills(): UseBillsResult {
   }, [fetchBills, hasMore, loadingMore, offset]);
 
   useEffect(() => {
-    void fetchBills({ nextOffset: 0, append: false });
-  }, [fetchBills]);
-
-  useEffect(() => {
-    void fetchSummary();
-  }, [fetchSummary]);
+    void refetch();
+  }, [refetch]);
 
   useEffect(() => {
     if (!user) return;

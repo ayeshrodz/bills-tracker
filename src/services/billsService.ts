@@ -54,8 +54,12 @@ const applyFilters = (
 export const getBills = async (
   query: BillsQuery = {}
 ): Promise<{ data: Bill[]; count: number | null }> => {
-  let request = createBillsQuery()
-    .select("*", { count: "exact" })
+  const withCount = query.withCount ?? true;
+  let request = withCount
+    ? createBillsQuery().select("*", { count: "exact" })
+    : createBillsQuery().select("*");
+
+  request = request
     .order("payment_date", { ascending: false })
     .order("billing_year", { ascending: false })
     .order("billing_month", { ascending: false });
@@ -69,7 +73,10 @@ export const getBills = async (
 
   const { data, error, count } = await request;
   if (error) throw error;
-  return { data: (data as Bill[]) ?? [], count: count ?? null };
+  return {
+    data: (data as Bill[]) ?? [],
+    count: withCount ? count ?? null : null,
+  };
 };
 
 type BillsSummaryRow = {
@@ -210,4 +217,18 @@ export const deleteBill = async (id: string): Promise<void> => {
   const { error } = await supabase.from("bills").delete().eq("id", id);
 
   if (error) throw error;
+};
+
+export const getBillById = async (id: string): Promise<Bill | null> => {
+  const { data, error } = await supabase
+    .from("bills")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+  return data as Bill;
 };

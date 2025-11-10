@@ -91,6 +91,17 @@ Non-sensitive defaults (Supabase bucket name, signed URL TTL, toast duration, et
 *   Summary cards reflect the full filtered dataset thanks to the `get_bills_summary` RPC, while the footer shows how many results are currently displayed out of the total.
 *   Supabase Realtime pushes inserts/updates/deletes to the UI so the list stays fresh without manual refreshes.
 
+## Performance Architecture
+
+*   **On-demand bundles.** Every route and heavy widget (`BillAttachmentsPanel`, `CategoryManagerModal`, etc.) is code-split using `React.lazy`, while Vite emits dedicated `vendor` and `supabase` chunks with an ES2022 target. This keeps the main bundle lean on first paint yet highly cacheable on repeat visits.
+*   **Head-started networking.** A lightweight `<PerformanceHeadLinks />` component injects `dns-prefetch`/`preconnect` links for your Supabase REST + Storage origins as soon as the app loads, shaving off the handshake cost before the first API call.
+*   **Shared data providers.** Categories now flow through `CategoriesProvider`, so every surface (filters, form, manager modal) reads the same cached list with zero duplicate queries.
+*   **Focused data hooks.** `useBills` only powers the list view, while the form page uses `useBillDetail` + `useBillMutations` to fetch a single record and run mutations without opening extra realtime channels.
+*   **Attachment batching.** The attachments hook batches signed URL creation, caches responses until they expire, uploads files concurrently (with size guards), and avoids repeating storage calls when rendering.
+*   **Smarter summaries.** Count queries now only run for the first page, and summary RPCs execute alongside the initial page load instead of in separate effect chains, cutting redundant network hops.
+
+Run `npm run build` locally to confirm the split bundles and compare Lighthouse scores; most setups see the Performance category move into the mid/upper 90s once cached.
+
 ## Authentication Flow
 
 *   All Supabase mutations call a shared `requireSession` helper; if a token expires the app automatically signs the user out and shows a toast prompting re-authentication.

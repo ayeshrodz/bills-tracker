@@ -1,13 +1,15 @@
 // src/hooks/useBillAttachments.ts
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BillAttachment, AttachmentCategory } from "../types/attachments";
 import { attachmentsService } from "../services";
 import { normalizeError } from "../utils/errors";
 import { SessionExpiredError } from "../lib/errors";
 import { useAuth } from "./useAuth";
+import { appConfig } from "../config";
 
 type UseBillAttachmentsResult = {
   attachments: BillAttachment[];
+  signedUrls: Record<string, string | null>;
   loading: boolean;
   error: string | null;
   uploadFiles: (
@@ -15,7 +17,6 @@ type UseBillAttachmentsResult = {
     fileType?: AttachmentCategory
   ) => Promise<void>;
   deleteAttachment: (att: BillAttachment) => Promise<void>;
-  getSignedUrl: (path: string) => Promise<string | null>;
   refetch: () => Promise<void>;
 };
 
@@ -23,9 +24,15 @@ export function useBillAttachments(
   billId: string | null
 ): UseBillAttachmentsResult {
   const [attachments, setAttachments] = useState<BillAttachment[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string | null>>(
+    {}
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signOut } = useAuth();
+  const signedUrlCache = useRef<
+    Record<string, { url: string | null; expiresAt: number }>
+  >({});
 
   const handleSessionExpired = useCallback(
     (err?: SessionExpiredError) => {
@@ -74,43 +81,45 @@ export function useBillAttachments(
       setError(null);
       setLoading(true);
 
-    try {
-      const errors: string[] = [];
-      for (const file of fileArray) {
-        try {
-          const created = await attachmentsService.uploadAttachment(
-            billId,
-            file,
-            fileType
-          );
-          setAttachments((prev) => [created, ...prev]);
-        } catch (err) {
-          if (err instanceof SessionExpiredError) {
-            const message = handleSessionExpired(err);
-            setError(message);
-            throw new SessionExpiredError(message);
-          }
-          const message = normalizeError(err);
-          errors.push(message);
-          setError(message);
-        }
-      }
+      try {
+        const results = await Promise.allSettled(
+          fileArray.map(async (file) => {
+            if (file.size > 10 * 1024 * 1024) {
+              throw new Error(
+                `${file.name} is larger than 10MB. Please upload a smaller file.`
+              );
+            }
+            const created = await attachmentsService.uploadAttachment(
+              billId,
+              file,
+              fileType
+            );
+            setAttachments((prev) => [created, ...prev]);
+          })
+        );
 
-      if (errors.length) {
-        throw new Error(errors.join(", "));
+        const failures = results.filter((r) => r.status === "rejected");
+        if (failures.length) {
+          const messages = failures.map((failure) =>
+            failure.status === "rejected"
+              ? normalizeError(failure.reason)
+              : ""
+          );
+          throw new Error(messages.join(", "));
+        }
+      } catch (err) {
+        if (err instanceof SessionExpiredError) {
+          const message = handleSessionExpired(err);
+          setError(message);
+          throw new SessionExpiredError(message);
+        }
+        const message = normalizeError(err);
+        setError(message);
+        throw err instanceof Error ? err : new Error(message);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Unexpected error uploading attachments:", err);
-      if (err instanceof SessionExpiredError) {
-        const message = handleSessionExpired(err);
-        throw new SessionExpiredError(message);
-      }
-      setError(normalizeError(err));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  },
+    },
     [billId, handleSessionExpired]
   );
 
@@ -138,22 +147,54 @@ export function useBillAttachments(
     [handleSessionExpired]
   );
 
-  const getSignedUrl = useCallback(async (path: string): Promise<string | null> => {
-    try {
-      return await attachmentsService.createSignedUrl(path);
-    } catch (err) {
-      console.error("Error creating signed URL:", err);
-      return null;
+  const refreshSignedUrls = useCallback(async () => {
+    if (!attachments.length) {
+      setSignedUrls({});
+      return;
     }
-  }, []);
+
+    const now = Date.now();
+    const ttlBufferMs = 5_000;
+    const missing = attachments
+      .map((att) => att.file_path)
+      .filter((path) => {
+        const cached = signedUrlCache.current[path];
+        return !cached || cached.expiresAt <= now + ttlBufferMs;
+      });
+
+    if (missing.length) {
+      try {
+        const generated = await attachmentsService.createSignedUrls(missing);
+        Object.entries(generated).forEach(([path, url]) => {
+          signedUrlCache.current[path] = {
+            url,
+            expiresAt:
+              now + (appConfig.supabase.signedUrlTTL ?? 60) * 1000 - ttlBufferMs,
+          };
+        });
+      } catch (err) {
+        console.error("Error creating signed URLs:", err);
+      }
+    }
+
+    const next: Record<string, string | null> = {};
+    attachments.forEach((att) => {
+      next[att.file_path] = signedUrlCache.current[att.file_path]?.url ?? null;
+    });
+    setSignedUrls(next);
+  }, [attachments]);
+
+  useEffect(() => {
+    void refreshSignedUrls();
+  }, [refreshSignedUrls]);
 
   return {
     attachments,
+    signedUrls,
     loading,
     error,
     uploadFiles,
     deleteAttachment,
-    getSignedUrl,
     refetch: fetchAttachments,
   };
 }

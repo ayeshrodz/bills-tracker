@@ -82,3 +82,20 @@ export const createSignedUrl = async (path: string): Promise<string> => {
 
   return data.signedUrl;
 };
+
+export const createSignedUrls = async (
+  paths: string[]
+): Promise<Record<string, string | null>> => {
+  const uniquePaths = Array.from(new Set(paths));
+  if (!uniquePaths.length) return {};
+
+  const { data, error } = await supabase.storage
+    .from(appConfig.supabase.bucket)
+    .createSignedUrls(uniquePaths, appConfig.supabase.signedUrlTTL);
+
+  if (error) throw error;
+
+  const entries =
+    data?.map((item) => [item.path, item.signedUrl ?? null] as const) ?? [];
+  return Object.fromEntries(entries);
+};

@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { Suspense, lazy, useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import type { Bill } from "../hooks/useBills";
 import { useCategories } from "../hooks/useCategories";
 import { MONTH_OPTIONS } from "../constants";
-import CategoryManagerModal from "./CategoryManagerModal";
 import PlusIcon from "./icons/PlusIcon";
+
+const CategoryManagerModal = lazy(() => import("./CategoryManagerModal"));
 
 type Props = {
   onSave: (bill: Omit<Bill, "id">, editingId?: string | null) => void;
@@ -185,11 +186,14 @@ export const BillForm = ({ onSave, onCancel, editingBill }: Props) => {
           </button>
         </div>
       </form>
-      <CategoryManagerModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {isModalOpen && (
+        <Suspense fallback={null}>
+          <CategoryManagerModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+          />
+        </Suspense>
+      )}
     </>
   );
 };
-
