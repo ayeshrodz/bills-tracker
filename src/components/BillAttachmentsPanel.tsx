@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import { useBillAttachments } from "../hooks/useBillAttachments";
 
 type Props = {
@@ -11,8 +12,41 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
     error,
     uploadFiles,
     deleteAttachment,
-    getPublicUrl,
+    getSignedUrl,
   } = useBillAttachments(billId);
+
+  const [signedUrls, setSignedUrls] = useState<Record<string, string | null>>(
+    {}
+  );
+
+  // Pre-fetch signed URLs whenever attachments change
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSignedUrls = async () => {
+      if (!attachments.length) {
+        if (!cancelled) setSignedUrls({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        attachments.map(async (att) => {
+          const url = await getSignedUrl(att.file_path);
+          return [att.file_path, url] as const;
+        })
+      );
+
+      if (!cancelled) {
+        setSignedUrls(Object.fromEntries(entries));
+      }
+    };
+
+    void loadSignedUrls();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attachments, getSignedUrl]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -64,7 +98,7 @@ export const BillAttachmentsPanel = ({ billId }: Props) => {
             >
               <div className="min-w-0">
                 <a
-                  href={getPublicUrl(att.file_path)}
+                  href={signedUrls[att.file_path] ?? "#"}
                   target="_blank"
                   rel="noreferrer"
                   className="block truncate text-sky-600 hover:underline"
