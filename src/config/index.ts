@@ -10,6 +10,7 @@ type AppConfig = {
     signedUrlTTL: number;
   };
   ui: StaticConfig["ui"];
+  logging?: StaticConfig["logging"];
 };
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
@@ -36,6 +37,7 @@ const mergedConfig: AppConfig = {
     signedUrlTTL: staticConfig.supabase.signedUrlTTL ?? 60,
   },
   ui: staticConfig.ui,
+  logging: staticConfig.logging,
 };
 
 export const appConfig = mergedConfig;

@@ -5,6 +5,7 @@ import { billsService } from "../services";
 import { normalizeError } from "../utils/errors";
 import { SessionExpiredError } from "../lib/errors";
 import { useAuth } from "./useAuth";
+import { logger } from "../utils/logger";
 
 // Re-export types so existing imports like `import { Bill } from "../hooks/useBills"` keep working
 export type { Bill, BillInsert, BillUpdate } from "../types/bills";
@@ -41,7 +42,7 @@ export function useBills(): UseBillsResult {
       const data = await billsService.getBills();
       setBills(data);
     } catch (err) {
-      console.error("Error fetching bills:", err);
+      logger.error("Error fetching bills", err);
       if (err instanceof SessionExpiredError) {
         setError(handleSessionExpired(err));
       } else {
@@ -76,13 +77,11 @@ export function useBills(): UseBillsResult {
 
   async function updateBill(id: string, updated: BillUpdate): Promise<void> {
     setError(null);
-    console.log("updateBill: Attempting to update bill with ID:", id, "and data:", updated);
-
     try {
       const updatedBill = await billsService.updateBill(id, updated);
       setBills((prev) => prev.map((b) => (b.id === id ? updatedBill : b)));
     } catch (err) {
-      console.error("updateBill: Error updating bill:", err);
+      logger.error("Error updating bill", err);
       if (err instanceof SessionExpiredError) {
         const message = handleSessionExpired(err);
         throw new SessionExpiredError(message);
@@ -100,7 +99,7 @@ export function useBills(): UseBillsResult {
       await billsService.deleteBill(id);
       setBills((prev) => prev.filter((b) => b.id !== id));
     } catch (err) {
-      console.error("Error deleting bill:", err);
+      logger.error("Error deleting bill", err);
       if (err instanceof SessionExpiredError) {
         const message = handleSessionExpired(err);
         throw new SessionExpiredError(message);

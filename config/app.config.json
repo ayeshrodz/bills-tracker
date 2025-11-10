@@ -5,5 +5,8 @@
   },
   "ui": {
     "toastDuration": 4000
+  },
+  "logging": {
+    "level": "info"
   }
 }
