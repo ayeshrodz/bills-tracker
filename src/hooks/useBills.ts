@@ -1,7 +1,8 @@
 // src/hooks/useBills.ts
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "../lib/supabaseClient";
 import type { Bill, BillInsert, BillUpdate } from "../types/bills";
+import { billsService } from "../services";
+import { normalizeError } from "../utils/errors";
 
 // Re-export types so existing imports like `import { Bill } from "../hooks/useBills"` keep working
 export type { Bill, BillInsert, BillUpdate } from "../types/bills";
@@ -25,20 +26,15 @@ export function useBills(): UseBillsResult {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
-      .from("bills")
-      .select("*")
-      .order("billing_year", { ascending: false })
-      .order("billing_month", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching bills:", error);
-      setError(error.message);
-    } else if (data) {
-      setBills(data as Bill[]);
+    try {
+      const data = await billsService.getBills();
+      setBills(data);
+    } catch (err) {
+      console.error("Error fetching bills:", err);
+      setError(normalizeError(err));
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -48,20 +44,12 @@ export function useBills(): UseBillsResult {
   async function addBill(bill: BillInsert): Promise<void> {
     setError(null);
 
-    const { data, error } = await supabase
-      .from("bills")
-      .insert([bill])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error adding bill:", error);
-      setError(error.message);
-      return;
-    }
-
-    if (data) {
-      setBills((prev) => [...prev, data as Bill]);
+    try {
+      const created = await billsService.addBill(bill);
+      setBills((prev) => [...prev, created]);
+    } catch (err) {
+      console.error("Error adding bill:", err);
+      setError(normalizeError(err));
     }
   }
 
@@ -69,43 +57,25 @@ export function useBills(): UseBillsResult {
     setError(null);
     console.log("updateBill: Attempting to update bill with ID:", id, "and data:", updated);
 
-    const { data, error } = await supabase
-      .from("bills")
-      .update(updated)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("updateBill: Error updating bill:", error);
-      setError(error.message);
-      return;
+    try {
+      const updatedBill = await billsService.updateBill(id, updated);
+      setBills((prev) => prev.map((b) => (b.id === id ? updatedBill : b)));
+    } catch (err) {
+      console.error("updateBill: Error updating bill:", err);
+      setError(normalizeError(err));
     }
-
-    if (data) {
-      console.log("updateBill: Successfully updated bill:", data);
-      setBills((prev) =>
-        prev.map((b) => (b.id === id ? (data as Bill) : b)),
-      );
-    }
-    console.log("updateBill: Function finished.");
   }
 
   async function deleteBill(id: string): Promise<void> {
     setError(null);
 
-    const { error } = await supabase
-      .from("bills")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error deleting bill:", error);
-      setError(error.message);
-      return;
+    try {
+      await billsService.deleteBill(id);
+      setBills((prev) => prev.filter((b) => b.id !== id));
+    } catch (err) {
+      console.error("Error deleting bill:", err);
+      setError(normalizeError(err));
     }
-
-    setBills((prev) => prev.filter((b) => b.id !== id));
   }
 
   return {
